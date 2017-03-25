@@ -9,7 +9,7 @@ from chainer import cuda, optimizers, Variable
 class Block(chainer.Chain):
     
     def __init__(self, n_in, N):
-        super(block,self).__init__(
+        super(Block,self).__init__(
             c1 = L.Convolution2D(n_in, N, 3, stride=1, pad=1),
             b1 = L.BatchNormalization(N),
             c2 = L.Convolution2D(N, N, 3, stride=1, pad=1),
@@ -28,7 +28,7 @@ class Block(chainer.Chain):
 class FaceSwapNet(chainer.Chain):
     
     def __init__(self):
-        super(FaceSwapNet, self).init__(
+        super(FaceSwapNet, self).__init__(
             b1 = Block(3,32),
             
             b2_1 = Block(3,32),
@@ -70,17 +70,19 @@ class FaceSwapNet(chainer.Chain):
         h5 = self.b5_2(F.concat([h4, h5]))
         del h4,x4
         
-        h5 = F.Sigmoid(self.fin_conv(h5))
+        h5 = F.sigmoid(self.fin_conv(h5))
         
         return h5*255
 
     def local_patch(self, content, style_patch):
         
         xp = cuda.get_array_module(content.data)
-        correlation = F.convolution_2d(Variable(content.data,volatile=True), W=Variable(style_patch.data,volatile=True), stride=1, pad=0)
+        b,ch,h,w = content.data.shape
+        correlation = F.convolution_2d(Variable(content.data,volatile=True), W=style_patch.data, stride=1, pad=0)
         indices = xp.argmax(correlation.data, axis=1)
-        nearest_style_patch = style_patch.take(indices)
-        style_loss = F.meansquared_error(content, Variable(nearest_style_patch, volatile=True))
+        nearest_style_patch = style_patch.data.take(indices, axis=0).reshape(b,-1)
+        content = F.convolution_2d(content, W=Variable(xp.identity(ch*3*3,dtype=xp.float32).reshape((ch*3*3,ch,3,3))),stride=1,pad=0).transpose(0,2,3,1).reshape(b,-1)
+        style_loss = F.mean_squared_error(content, nearest_style_patch)
         
         return style_loss
     
@@ -101,20 +103,20 @@ class VGG19(chainer.Chain):
 
             conv4_1 = L.Convolution2D(256, 512, 3, stride=1, pad=1),
             conv4_2 = L.Convolution2D(512, 512, 3, stride=1, pad=1),
-            conv4_3 = L.Convolution2D(512, 512, 3, stride=1, pad=1),
-            conv4_4 = L.Convolution2D(512, 512, 3, stride=1, pad=1),
+            #conv4_3 = L.Convolution2D(512, 512, 3, stride=1, pad=1),
+            #conv4_4 = L.Convolution2D(512, 512, 3, stride=1, pad=1),
 
-            conv5_1 = L.Convolution2D(512, 512, 3, stride=1, pad=1),
-            conv5_2 = L.Convolution2D(512, 512, 3, stride=1, pad=1),
-            conv5_3 = L.Convolution2D(512, 512, 3, stride=1, pad=1),
-            conv5_4 = L.Convolution2D(512, 512, 3, stride=1, pad=1),
+            #conv5_1 = L.Convolution2D(512, 512, 3, stride=1, pad=1),
+            #conv5_2 = L.Convolution2D(512, 512, 3, stride=1, pad=1),
+            #conv5_3 = L.Convolution2D(512, 512, 3, stride=1, pad=1),
+            #conv5_4 = L.Convolution2D(512, 512, 3, stride=1, pad=1),
         )
         self.mean = np.asarray([104, 117, 124], dtype=np.float32)
         
     def vgg_preprocess(X, input_type="trans"):
         if input_type=="trans":
             X -= np.asarray([[[124]],[[117]],[[104]]], dtype=np.float32)
-        elif input_type="RGB"
+        elif input_type=="RGB":
             X = np.rollaxis(X[:,:,::-1]-np.asarray([104, 117, 124], dtype=np.float32),2)
         return X
 
