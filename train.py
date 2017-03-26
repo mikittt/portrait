@@ -34,10 +34,16 @@ def conv_setup(ORIGINAL_VGG,VGG):
 def load_data(content_path, style_path, target_width):
     X=[]
     for size in [8,16,32,64,128]:
+        
         X_tmp=[]
-        for path in glob.glob(content_path+"*.jpg")[:100]:
+        """
+        for path in glob.glob(content_path+"*.jpg"):
             image = Image.open(path).convert('RGB')
             X_tmp.append(np.array(image.resize((size, size), Image.BILINEAR)).transpose(2,0,1))
+        np.save("X_"+str(size)+".npy",np.array(X_tmp))
+        """
+        
+        X_tmp=np.load("X_"+str(size)+".npy")
         X.append(np.array(X_tmp))
         print("size:{} {}loaded".format(size,len(X_tmp)))
         
@@ -81,6 +87,7 @@ X_test=[]
 for i in range(len(X)):
     X_train.append(X[i][:-10])
     X_test.append(X[i][-10:])
+del X
 
 optimizer=optimizers.Adam(alpha=0.001)
 optimizer.setup(cnn)
@@ -91,26 +98,31 @@ print("model to gpu")
 
 xp=cnn.xp
 
-N=len(X_train)
-print(N)
-print(X_train[0].shape)
-batch_size=16
+N=len(X_train[0])
+batch_size=5
 kernel=3
 alpha=1.0
 beta=0
 gamma=0.3
 n_epoch=10000
+save_model_interval=1000
 
+style_patch=[]
+"""
 style=Variable(xp.array(style,dtype=xp.float32),volatile=True)
 style-=xp.array([[[[124]],[[117]],[[104]]]])
 style_feature=vgg(style)
-style_patch=[]
-
 for name in ["3_1","4_1"]:
     patch=xp.array([style_feature[name][0,:,i:i+kernel,j:j+kernel].data/xp.linalg.norm(style_feature[name][0,:,i:i+kernel,j:j+kernel].data) for i in range(style_feature[name].shape[2]-kernel+1) for j in range(style_feature[name].shape[3]-kernel+1)],dtype=xp.float32)
+    np.save("style_patch_"+name+".npy",cuda.to_cpu(patch))
+
     style_patch.append(patch)
 del patch
-print(style_patch)
+"""
+
+style_patch=[xp.array(np.load("style_patch_"+name+".npy"),xp.float32) for name in ["3_1","4_1"]]
+
+
 
 for epoch in range(1,n_epoch+1):
     print("epoch",epoch)
@@ -118,9 +130,10 @@ for epoch in range(1,n_epoch+1):
     sum_lc=0
     sum_ls=0
     sum_lt=0
-    if epoch in np.arange(1,21)*100:
-        beta+=1
+    #if epoch in np.arange(1,21)*100:
+        #beta+=1
     for i in range(0,N,batch_size):
+        print(i,N,batch_size)
         x1=xp.array(X_train[0][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
         x2=xp.array(X_train[1][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
         x3=xp.array(X_train[2][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
@@ -157,6 +170,6 @@ for epoch in range(1,n_epoch+1):
                                       data/N))
     with open("log.txt","w") as f:
         f.write("content loss={} style loss={} tv loss={}".format(sum_lc.data/N,sum_ls.data/N,sum_lt.data/N)+str("\n"))
-    if epoch%10==0:
+    if epoch%save_model_interval==0:
         serializers.save_hdf5('PortraitModel_{}.model'.format(str(L.data/N).replace('.','')), cnn)
         
