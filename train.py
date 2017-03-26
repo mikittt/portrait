@@ -89,7 +89,7 @@ for i in range(len(X)):
     X_test.append(X[i][-10:])
 del X
 
-optimizer=optimizers.Adam(alpha=0.001)
+optimizer=optimizers.Adam(alpha=0.01)
 optimizer.setup(cnn)
 
 cnn.to_gpu()
@@ -105,8 +105,8 @@ alpha=1.0
 beta=0
 gamma=0.3
 n_epoch=10000
-save_model_interval=1000
-
+save_model_interval=10000
+save_image_interval=200
 style_patch=[]
 """
 style=Variable(xp.array(style,dtype=xp.float32),volatile=True)
@@ -134,13 +134,15 @@ for epoch in range(1,n_epoch+1):
         #beta+=1
     for i in range(0,N,batch_size):
         print(i,N,batch_size)
+        cnn.zerograds()
+        vgg.zerograds()
+
         x1=xp.array(X_train[0][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
         x2=xp.array(X_train[1][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
         x3=xp.array(X_train[2][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
         x4=xp.array(X_train[3][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
         x5=xp.array(X_train[4][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
         
-        optimizer.zero_grads()
         
         swap_X=cnn(x1,x2,x3,x4,x5)
         contents=Variable(xp.array(X_train[-1][perm[i:i+batch_size]],dtype=xp.float32),volatile=True)
@@ -149,27 +151,34 @@ for epoch in range(1,n_epoch+1):
         
         swap_feature=vgg(swap_X)
         content_feature=vgg(contents)
-        
+        ## content loss
         L_content=F.mean_squared_error(Variable(content_feature["4_2"].data), swap_feature["4_2"])
+        ## style loss
         L_style=0
         for s,name in enumerate(["3_1","4_1"]):
             L_style+=cnn.local_patch(swap_feature[name],Variable(style_patch[s],volatile=True))
         L_style/=s
+        ## total variation loss
         L_tv=total_variation(swap_X)
+
         L=alpha*L_content+beta*L_style+gamma*L_tv
         sum_lc+=L_content
         sum_ls+=L_style
         sum_lt+=L_tv
         L.backward()
         optimizer.update()
-        
-    for k,X in enumerate(swap_X.data):
-        X = xp.transpose(X+xp.array([[[124]],[[117]],[[104]]]), (1,2,0))
-        Image.fromarray(cuda.to_cpu(X[:,:,::-1]).astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+str(k)+".jpg")
+
+
+    if epoch%save_image_interval==0:
+        for k,X in enumerate(swap_X.data):
+            X = xp.transpose(X+xp.array([[[124]],[[117]],[[104]]]), (1,2,0))
+            Image.fromarray(cuda.to_cpu(X[:,:,::-1]).astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+str(k)+".jpg")
     print("content loss={} style loss={} tv loss={}".format(sum_lc.data/N,sum_ls.data/N,sum_lt.\
                                       data/N))
+
     with open("log.txt","w") as f:
         f.write("content loss={} style loss={} tv loss={}".format(sum_lc.data/N,sum_ls.data/N,sum_lt.data/N)+str("\n"))
+
     if epoch%save_model_interval==0:
         serializers.save_hdf5('PortraitModel_{}.model'.format(str(L.data/N).replace('.','')), cnn)
         
