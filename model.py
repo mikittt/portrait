@@ -6,16 +6,36 @@ import chainer.functions as F
 import chainer.links as L
 from chainer import cuda, optimizers, Variable
 
+class InstanceNormalization(links.Link):
+
+    def __init__(self, size, eps=2e-5, dtype=numpy.float32,):
+        super(InstanceNormalization, self).__init__()
+        self.add_param("gamma", size, dtype=dtype)
+        self.add_param("beta", size dtype=dtype)
+        self.eps = eps
+
+    def __call__(self, x):
+
+        xp = cuda.get_array_module(x.data)
+        mean = x.mean(axis=(2,3), keepdims=True)
+        var = x.var(axis=(2,3), keepdims=True)
+
+        normalized_x = (x - mean) / xp.sqrt(var + self.eps)
+
+        return self.gamma*normalized_x + self.beta
+
+
+
 class Block(chainer.Chain):
     
     def __init__(self, n_in, N):
         super(Block,self).__init__(
             c1 = L.Convolution2D(n_in, N, 3, stride=1, pad=1),
-            b1 = L.BatchNormalization(N),
+            b1 = L.InstanceNormalization(N),
             c2 = L.Convolution2D(N, N, 3, stride=1, pad=1),
-            b2 = L.BatchNormalization(N),
+            b2 = L.InstanceNormalization(N),
             c3 = L.Convolution2D(N, N, 1, stride=1, pad=0),
-            b3 = L.BatchNormalization(N)
+            b3 = L.InstanceNormalization(N)
         )
     
     def __call__(self, x, test=False):
