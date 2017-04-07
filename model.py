@@ -6,16 +6,36 @@ import chainer.functions as F
 import chainer.links as L
 from chainer import cuda, optimizers, Variable
 
+
+class InstanceNormalization(links.Link):
+    
+    def __init__(self, size, eps=2e-5, dtype=numpy.float32):
+        super(InstanceNormalization, self).__init__()
+        self.add_param("gamma", size, dtype=dtype)
+        self.add_param("beta", size, dtype=dtype)
+        self.eps = eps
+        
+    def __call__(self, x):
+        
+        xp = cuda.get_array_module(x.data)
+        mean = x.mean(axis=(2,3), keepdims=True)
+        var = x.var(axis=(2,3), keepdims=True)
+
+        normalized_x = (x - mean) / xp.sqrt(var + self.eps) 
+        
+        return self.gamma*normalized_x + self.beta
+
+
 class Block(chainer.Chain):
     
     def __init__(self, n_in, N):
         super(Block,self).__init__(
             c1 = L.Convolution2D(n_in, N, 3, stride=1, pad=1),
-            b1 = L.BatchNormalization(N),
+            b1 = L.InstanceNormalization(N),
             c2 = L.Convolution2D(N, N, 3, stride=1, pad=1),
-            b2 = L.BatchNormalization(N),
+            b2 = L.InstanceNormalization(N),
             c3 = L.Convolution2D(N, N, 1, stride=1, pad=0),
-            b3 = L.BatchNormalization(N)
+            b3 = L.InstanceNormalization(N)
         )
     
     def __call__(self, x, test=False):
@@ -74,11 +94,11 @@ class FaceSwapNet(chainer.Chain):
         
         return h5*255
 
-    def local_patch(self, content, style_patch):
+    def local_patch(self, content, style_patch, style_patch_norm):
         
         xp = cuda.get_array_module(content.data)
         b,ch,h,w = content.data.shape
-        correlation = F.convolution_2d(Variable(content.data,volatile=True), W=style_patch.data, stride=1, pad=0)
+        correlation = F.convolution_2d(Variable(content.data,volatile=True), W=style_patch_norm.data, stride=1, pad=0)
         indices = xp.argmax(correlation.data, axis=1)
         nearest_style_patch = style_patch.data.take(indices, axis=0).reshape(b,-1)
         content = F.convolution_2d(content, W=Variable(xp.identity(ch*3*3,dtype=xp.float32).reshape((ch*3*3,ch,3,3))),stride=1,pad=0).transpose(0,2,3,1).reshape(b,-1)

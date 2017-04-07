@@ -1,12 +1,12 @@
 import numpy as np
 import pickle
 import os
-from sklearn.cross_validation import train_test_split
 from chainer import cuda, Variable, optimizers, serializers
 import chainer.functions as F
 from PIL import Image
 import glob
 import time
+from tqdm import tqdm
 
 from model import FaceSwapNet
 from model import VGG19
@@ -33,26 +33,49 @@ def conv_setup(ORIGINAL_VGG,VGG):
     
 def load_data(content_path, style_path, target_width):
     X=[]
-    for size in [8,16,32,64,128]:
+    """
+    X_8=[]
+    X_16=[]
+    X_32=[]
+    X_64=[]
+    X_128=[]    
+    for path in tqdm(glob.glob(content_path+"*.jpg")):
+        image = Image.open(path).convert('RGB')
+        X_8.append(np.array(image.resize((8, int(8*218/178)), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
+        X_16.append(np.array(image.resize((16, 2*int(8*218/178)), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
+        X_32.append(np.array(image.resize((32, 4*int(8*218/178)), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
+        X_64.append(np.array(image.resize((64, 8*int(8*218/178)), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
+        X_128.append(np.array(image.resize((128, 16*int(8*218/178)), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
+    np.save("/data/unagi0/xenon/various_size_faces/X_8.npy",np.array(X_8))
+    np.save("/data/unagi0/xenon/various_size_faces/X_16.npy",np.array(X_16))
+    np.save("/data/unagi0/xenon/various_size_faces/X_32.npy",np.array(X_32))
+    np.save("/data/unagi0/xenon/various_size_faces/X_64.npy",np.array(X_64))
+    np.save("/data/unagi0/xenon/various_size_faces/X_128.npy",np.array(X_128))
         
-        X_tmp=[]
-        """
-        for path in glob.glob(content_path+"*.jpg"):
-            image = Image.open(path).convert('RGB')
-            X_tmp.append(np.array(image.resize((size, size), Image.BILINEAR)).transpose(2,0,1))
-        np.save("X_"+str(size)+".npy",np.array(X_tmp))
-        """
-        
-        X_tmp=np.load("X_"+str(size)+".npy")
-        X.append(np.array(X_tmp))
-        print("size:{} {}loaded".format(size,len(X_tmp)))
-        
+    X.append(X_8) 
+    X.append(X_16)
+    X.append(X_32)
+    X.append(X_64)
+    X.append(X_128)   
+    """
+    X_8=np.load("/data/unagi0/xenon/various_size_faces/X_8.npy")
+    X_16=np.load("/data/unagi0/xenon/various_size_faces/X_16.npy")
+    X_32=np.load("/data/unagi0/xenon/various_size_faces/X_32.npy")
+    X_64=np.load("/data/unagi0/xenon/various_size_faces/X_64.npy")
+    X_128=np.load("/data/unagi0/xenon/various_size_faces/X_128.npy")
+    
+    X.append(X_8) 
+    X.append(X_16)
+    X.append(X_32)
+    X.append(X_64)
+    X.append(X_128)   
+    
     style=[]
-    for path in glob.glob(style_path+"*"):
+    for path in glob.glob(style_path+"*.jpg"):
         image = Image.open(path).convert('RGB')
         width, height = image.size
         target_height = int(round(float(height * target_width) / width))
-        style.append(np.array(image.resize((target_width, target_height), Image.ANTIALIAS)).transpose(2,0,1))
+        style.append(np.array(image.resize((target_width, target_height), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
     
     style=np.array(style)
     
@@ -79,7 +102,7 @@ del original_vgg19
 
 cnn=FaceSwapNet()
 
-X,style=load_data(content_path="data/content/fin_celebA/",style_path="data/style/",target_width=128)
+X,style=load_data(content_path="/data/unagi0/dataset/CelebA/Img/img_align_celeba/",style_path="data/style/",target_width=128)
 print("succesfully data loaded!")
 
 X_train=[]
@@ -99,40 +122,43 @@ print("model to gpu")
 xp=cnn.xp
 
 N=len(X_train[0])
-batch_size=5
+batch_size=16
 kernel=3
 alpha=1.0
 beta=0
-gamma=0.3
+gamma=1e-5
 n_epoch=10000
-save_model_interval=10000
-save_image_interval=200
-style_patch=[]
+save_model_interval=1
+save_image_interval=400
 """
+style_patch=[]
+style_patch_norm=[]
+
 style=Variable(xp.array(style,dtype=xp.float32),volatile=True)
-style-=xp.array([[[[124]],[[117]],[[104]]]])
+style-=xp.array([[[[104]],[[117]],[[124]]]])
 style_feature=vgg(style)
 for name in ["3_1","4_1"]:
-    patch=xp.array([style_feature[name][0,:,i:i+kernel,j:j+kernel].data/xp.linalg.norm(style_feature[name][0,:,i:i+kernel,j:j+kernel].data) for i in range(style_feature[name].shape[2]-kernel+1) for j in range(style_feature[name].shape[3]-kernel+1)],dtype=xp.float32)
-    np.save("style_patch_"+name+".npy",cuda.to_cpu(patch))
+    patch_norm=xp.array([style_feature[name][0,:,j:j+kernel,i:i+kernel].data/xp.linalg.norm(style_feature[name][0,:,j:j+kernel,i:i+kernel].data) for j in range(style_feature[name].shape[2]-kernel+1) for i in range(style_feature[name].shape[3]-kernel+1)],dtype=xp.float32)
+    
+    patch=xp.array([style_feature[name][0,:,j:j+kernel,i:i+kernel].data for j in range(style_feature[name].shape[2]-kernel+1) for i in range(style_feature[name].shape[3]-kernel+1)],dtype=xp.float32)
+    
+    np.save("data/style/style_patch_norm"+name+".npy",cuda.to_cpu(patch_norm))
+    np.save("data/style/style_patch"+name+".npy",cuda.to_cpu(patch))
 
     style_patch.append(patch)
-del patch
+    style_patch_norm.append(patch_norm)
+del patch,patch_norm
 """
-
-style_patch=[xp.array(np.load("style_patch_"+name+".npy"),xp.float32) for name in ["3_1","4_1"]]
-
+style_patch_norm=[xp.array(np.load("data/style/style_patch_norm"+name+".npy"),xp.float32) for name in ["3_1","4_1"]]
+style_patch=[xp.array(np.load("data/style/style_patch"+name+".npy"),xp.float32) for name in ["3_1","4_1"]]
 
 
 for epoch in range(1,n_epoch+1):
     print("epoch",epoch)
     perm=np.random.permutation(N)
-    sum_lc=0
-    sum_ls=0
-    sum_lt=0
-    #if epoch in np.arange(1,21)*100:
-        #beta+=1
     for i in range(0,N,batch_size):
+        if beta<0.4:
+            beta+=0.0001
         print(i,N,batch_size)
         cnn.zerograds()
         vgg.zerograds()
@@ -146,8 +172,8 @@ for epoch in range(1,n_epoch+1):
         
         swap_X=cnn(x1,x2,x3,x4,x5)
         contents=Variable(xp.array(X_train[-1][perm[i:i+batch_size]],dtype=xp.float32),volatile=True)
-        swap_X-=xp.array([[[[124]],[[117]],[[104]]]])
-        contents-=xp.array([[[[124]],[[117]],[[104]]]])
+        swap_X-=xp.array([[[[104]],[[117]],[[124]]]])
+        contents-=xp.array([[[[104]],[[117]],[[124]]]])
         
         swap_feature=vgg(swap_X)
         content_feature=vgg(contents)
@@ -156,28 +182,23 @@ for epoch in range(1,n_epoch+1):
         ## style loss
         L_style=0
         for s,name in enumerate(["3_1","4_1"]):
-            L_style+=cnn.local_patch(swap_feature[name],Variable(style_patch[s],volatile=True))
-        L_style/=s
+            L_style+=cnn.local_patch(swap_feature[name],Variable(style_patch[s],volatile=True),Variable(style_patch_norm[s],volatile=True))
+        L_style/=2
         ## total variation loss
         L_tv=total_variation(swap_X)
 
         L=alpha*L_content+beta*L_style+gamma*L_tv
-        sum_lc+=L_content
-        sum_ls+=L_style
-        sum_lt+=L_tv
         L.backward()
         optimizer.update()
 
 
-    if epoch%save_image_interval==0:
-        for k,X in enumerate(swap_X.data):
-            X = xp.transpose(X+xp.array([[[124]],[[117]],[[104]]]), (1,2,0))
-            Image.fromarray(cuda.to_cpu(X[:,:,::-1]).astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+str(k)+".jpg")
-    print("content loss={} style loss={} tv loss={}".format(sum_lc.data/N,sum_ls.data/N,sum_lt.\
-                                      data/N))
-
-    with open("log.txt","w") as f:
-        f.write("content loss={} style loss={} tv loss={}".format(sum_lc.data/N,sum_ls.data/N,sum_lt.data/N)+str("\n"))
+        if i%save_image_interval==0:
+            for k,X in enumerate(swap_X.data):
+                X = xp.transpose(X+xp.array([[[104]],[[117]],[[124]]]), (1,2,0))
+                Image.fromarray(cuda.to_cpu(X)[:,:,::-1].astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+str(k)+"_"+str(beta)+".jpg")
+        print("content loss={} style loss={} tv loss={}".format(L_content.data/batch_size,L_style.data/batch_size,L_tv.data/batch_size))
+    #with open("log.txt","w") as f:
+    #    f.write("content loss={} style loss={} tv loss={}".format(sum_lc/N,sum_ls/N,sum_lt/N)+str("\n"))
 
     if epoch%save_model_interval==0:
         serializers.save_hdf5('PortraitModel_{}.model'.format(str(L.data/N).replace('.','')), cnn)
