@@ -4,12 +4,12 @@ import math
 import chainer
 import chainer.functions as F
 import chainer.links as L
-from chainer import cuda, optimizers, Variable
+from chainer import cuda, optimizers, Variable,link
 
 
-class InstanceNormalization(links.Link):
+class InstanceNormalization(link.Link):
     
-    def __init__(self, size, eps=2e-5, dtype=numpy.float32):
+    def __init__(self, size, eps=2e-5, dtype=np.float32):
         super(InstanceNormalization, self).__init__()
         self.add_param("gamma", size, dtype=dtype)
         self.add_param("beta", size, dtype=dtype)
@@ -31,11 +31,11 @@ class Block(chainer.Chain):
     def __init__(self, n_in, N):
         super(Block,self).__init__(
             c1 = L.Convolution2D(n_in, N, 3, stride=1, pad=1),
-            b1 = L.InstanceNormalization(N),
+            b1 = InstanceNormalization(N),
             c2 = L.Convolution2D(N, N, 3, stride=1, pad=1),
-            b2 = L.InstanceNormalization(N),
+            b2 = InstanceNormalization(N),
             c3 = L.Convolution2D(N, N, 1, stride=1, pad=0),
-            b3 = L.InstanceNormalization(N)
+            b3 = InstanceNormalization(N)
         )
     
     def __call__(self, x, test=False):
