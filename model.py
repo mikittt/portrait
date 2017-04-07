@@ -5,7 +5,7 @@ import chainer
 import chainer.functions as F
 import chainer.links as L
 from chainer import link
-from chainer import cuda, optimizers, Variable
+from chainer import cuda, optimizers, Variable,link
 
 
 class InstanceNormalization(link.Link):
@@ -32,7 +32,7 @@ class Block(chainer.Chain):
     def __init__(self, n_in, N):
         super(Block,self).__init__(
             c1 = L.Convolution2D(n_in, N, 3, stride=1, pad=1),
-            i1 = InstanceNormalization(N, ),
+            i1 = InstanceNormalization(N),
             c2 = L.Convolution2D(N, N, 3, stride=1, pad=1),
             i2 = InstanceNormalization(N),
             c3 = L.Convolution2D(N, N, 1, stride=1, pad=0),
