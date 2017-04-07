@@ -95,14 +95,14 @@ def total_variation(x):
 
 vgg=VGG19()
 original_vgg19=VGG19()
-serializers.load_hdf5("vgg19.model",original_vgg19)
+serializers.load_hdf5("/home/mil/tanaka/seminar/portrait/fast_portrait/vgg19.model",original_vgg19)
 
 vgg=conv_setup(original_vgg19,vgg)
 del original_vgg19
 
 cnn=FaceSwapNet()
 
-X,style=load_data(content_path="/data/unagi0/dataset/CelebA/Img/img_align_celeba/",style_path="data/style/",target_width=128)
+X,style=load_data(content_path="/data/unagi0/dataset/CelebA/Img/img_align_celeba/",style_path="/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/",target_width=128)
 print("succesfully data loaded!")
 
 X_train=[]
@@ -149,8 +149,8 @@ for name in ["3_1","4_1"]:
     style_patch_norm.append(patch_norm)
 del patch,patch_norm
 """
-style_patch_norm=[xp.array(np.load("data/style/style_patch_norm"+name+".npy"),xp.float32) for name in ["3_1","4_1"]]
-style_patch=[xp.array(np.load("data/style/style_patch"+name+".npy"),xp.float32) for name in ["3_1","4_1"]]
+style_patch_norm=[xp.array(np.load("/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/style_patch_norm"+name+".npy"),xp.float32) for name in ["3_1","4_1"]]
+style_patch=[xp.array(np.load("/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/style_patch"+name+".npy"),xp.float32) for name in ["3_1","4_1"]]
 
 
 for epoch in range(1,n_epoch+1):
