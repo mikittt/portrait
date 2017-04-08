@@ -24,7 +24,7 @@ class InstanceNormalization(link.Link):
 
         normalized_x = (x - mean) / xp.sqrt(var + self.eps) 
         
-        return self.gamma*normalized_x + self.beta
+        return self.gamma.reshape(1,-1,1,1)*normalized_x + self.beta.reshape(1,-1,1,1)
 
 
 class Block(chainer.Chain):
@@ -32,11 +32,11 @@ class Block(chainer.Chain):
     def __init__(self, n_in, N):
         super(Block,self).__init__(
             c1 = L.Convolution2D(n_in, N, 3, stride=1, pad=1),
-            i1 = InstanceNormalization(N),
+            i1 = F.BatchNormalization(N),
             c2 = L.Convolution2D(N, N, 3, stride=1, pad=1),
-            i2 = InstanceNormalization(N),
+            i2 = F.BatchNormalization(N),
             c3 = L.Convolution2D(N, N, 1, stride=1, pad=0),
-            i3 = InstanceNormalization(N)
+            i3 = F.BatchNormalization(N)
         )
     
     def __call__(self, x, test=False):
