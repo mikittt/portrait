@@ -102,31 +102,35 @@ del original_vgg19
 
 cnn=FaceSwapNet()
 
-X,style=load_data(content_path="/data/unagi0/dataset/CelebA/Img/img_align_celeba/",style_path="/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/",target_width=128)
+#X,style=load_data(content_path="/data/unagi0/dataset/CelebA/Img/img_align_celeba/",style_path="/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/",target_width=128)
 print("succesfully data loaded!")
-
+"""
 X_train=[]
 X_test=[]
 for i in range(len(X)):
     X_train.append(X[i][:-10])
     X_test.append(X[i][-10:])
 del X
+"""
 
-
-input = X_train[-1][1:2]
-link = Link(x=input.shape)
-link.to_gpu()
-
-optimizer=optimizers.Adam(alpha=3)
-optimizer.setup(link)
 
 vgg.to_gpu()
 print("model to gpu")
 
 xp=vgg.xp
 
-N=len(X_train[0])
-batch_size=16
+image = Image.open("../data/yamazaki.jpg").convert('RGB')
+width, height = image.size
+target_height = int(round(float(height * 128) / width))
+input = xp.array(image.resize((128, target_height), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1)[xp.newaxis,:]
+#input = X_train[-1][1:2]
+link = Link(x=input.shape)
+link.to_gpu()
+
+optimizer=optimizers.Adam(alpha=3)
+optimizer.setup(link)
+#N=len(X_train[0])
+#batch_size=16
 kernel=3
 alpha=1.0
 beta=0.4
@@ -163,14 +167,14 @@ for epoch in range(1,n_epoch+1):
     link.zerograds()      
     
     swap_X=link.x
-    contents=Variable(xp.array(X_train[-1][:1],dtype=xp.float32),volatile=True)
+    contents=Variable(xp.array(input,dtype=xp.float32),volatile=True)
     swap_X-=xp.array([[[[104]],[[117]],[[124]]]],dtype=xp.float32)
     contents-=xp.array([[[[104]],[[117]],[[124]]]],dtype=xp.float32)
     
     swap_feature=vgg(swap_X)
-    content_feature=vgg(contents)["4_1"].data
+    content_feature=vgg(contents)["4_2"].data
     ## content loss
-    L_content=F.mean_squared_error(Variable(content_feature), swap_feature["4_1"])
+    L_content=F.mean_squared_error(Variable(content_feature), swap_feature["4_2"])
     ## style loss
     L_style=0
     for s,name in enumerate(["3_1","4_1"]):
@@ -185,8 +189,8 @@ for epoch in range(1,n_epoch+1):
 
     if epoch%save_image_interval==0:
         X = xp.transpose(swap_X.data[0]+xp.array([[[104]],[[117]],[[124]]]), (1,2,0))
-        Image.fromarray(cuda.to_cpu(X)[:,:,::-1].astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+"_"+str(beta)+".jpg")
-    print("content loss={} style loss={} tv loss={}".format(L_content.data/batch_size,L_style.data/batch_size,L_tv.data/batch_size))
+        Image.fromarray(np.clip(cuda.to_cpu(X)[:,:,::-1],0,255).astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+"_"+str(beta)+".jpg")
+    print("content loss={} style loss={} tv loss={}".format(L_content.data,L_style.data,L_tv.data))
     #with open("log.txt","w") as f:
     #    f.write("content loss={} style loss={} tv loss={}".format(sum_lc/N,sum_ls/N,sum_lt/N)+str("\n"))
 

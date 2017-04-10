@@ -125,7 +125,7 @@ N=len(X_train[0])
 batch_size=16
 kernel=3
 alpha=1.0
-beta=0
+beta=0.18
 gamma=1e-5
 n_epoch=10000
 save_model_interval=1
@@ -176,26 +176,25 @@ for epoch in range(1,n_epoch+1):
         contents-=xp.array([[[[104]],[[117]],[[124]]]])
         
         swap_feature=vgg(swap_X)
-        content_feature=vgg(contents)
+        content_feature=vgg(contents)["4_1"].data
         ## content loss
-        L_content=F.mean_squared_error(Variable(content_feature["4_2"].data), swap_feature["4_2"])
+        L_content=F.mean_squared_error(Variable(content_feature), swap_feature["4_1"])
         ## style loss
         L_style=0
         for s,name in enumerate(["3_1","4_1"]):
-            L_style+=cnn.local_patch(swap_feature[name],Variable(style_patch[s],volatile=True),Variable(style_patch_norm[s],volatile=True))
+            L_style+=cnn.local_patch(swap_feature[name],style_patch[s],style_patch_norm[s])
         L_style/=2
         ## total variation loss
         L_tv=total_variation(swap_X)
-
+        print beta*L_style.data,"!1"
         L=alpha*L_content+beta*L_style+gamma*L_tv
         L.backward()
         optimizer.update()
 
 
         if i%save_image_interval==0:
-            for k,X in enumerate(swap_X.data):
-                X = xp.transpose(X+xp.array([[[104]],[[117]],[[124]]]), (1,2,0))
-                Image.fromarray(cuda.to_cpu(X)[:,:,::-1].astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+str(k)+"_"+str(beta)+".jpg")
+            X = xp.transpose(swap_X.data[0]+xp.array([[[104]],[[117]],[[124]]]), (1,2,0))
+            Image.fromarray(cuda.to_cpu(X)[:,:,::-1].astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+"_"+str(beta)+".jpg")
         print("content loss={} style loss={} tv loss={}".format(L_content.data/batch_size,L_style.data/batch_size,L_tv.data/batch_size))
     #with open("log.txt","w") as f:
     #    f.write("content loss={} style loss={} tv loss={}".format(sum_lc/N,sum_ls/N,sum_lt/N)+str("\n"))

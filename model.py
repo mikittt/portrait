@@ -99,9 +99,9 @@ class FaceSwapNet(chainer.Chain):
         
         xp = cuda.get_array_module(content.data)
         b,ch,h,w = content.data.shape
-        correlation = F.convolution_2d(Variable(content.data,volatile=True), W=style_patch_norm.data, stride=1, pad=0)
+        correlation = F.convolution_2d(Variable(content.data,volatile=True), W=style_patch_norm, stride=1, pad=0)
         indices = xp.argmax(correlation.data, axis=1)
-        nearest_style_patch = style_patch.data.take(indices, axis=0).reshape(b,-1)
+        nearest_style_patch = style_patch.take(indices, axis=0).reshape(b,-1)
         content = F.convolution_2d(content, W=Variable(xp.identity(ch*3*3,dtype=xp.float32).reshape((ch*3*3,ch,3,3))),stride=1,pad=0).transpose(0,2,3,1).reshape(b,-1)
         style_loss = F.mean_squared_error(content, nearest_style_patch)
         
