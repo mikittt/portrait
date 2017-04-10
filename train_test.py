@@ -58,6 +58,7 @@ def load_data(content_path, style_path, target_width):
     X.append(X_64)
     X.append(X_128)   
     """
+    """
     X_8=np.load("/data/unagi0/xenon/various_size_faces/X_8.npy")
     X_16=np.load("/data/unagi0/xenon/various_size_faces/X_16.npy")
     X_32=np.load("/data/unagi0/xenon/various_size_faces/X_32.npy")
@@ -69,15 +70,13 @@ def load_data(content_path, style_path, target_width):
     X.append(X_32)
     X.append(X_64)
     X.append(X_128)   
+    """
     
-    style=[]
-    for path in glob.glob(style_path+"*.jpg"):
-        image = Image.open(path).convert('RGB')
-        width, height = image.size
-        target_height = int(round(float(height * target_width) / width))
-        style.append(np.array(image.resize((target_width, target_height), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
-    
-    style=np.array(style)
+    path = glob.glob(style_path+"*.jpg")[0]:
+    image = Image.open(path).convert('RGB')
+    width, height = image.size
+    target_height = int(round(float(height * target_width) / width))
+    style = np.array(image.resize((target_width, target_height), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1)[np.newaxis,:]
     
     return X,style
 
@@ -102,17 +101,18 @@ del original_vgg19
 
 cnn=FaceSwapNet()
 
-X,style=load_data(content_path="/data/unagi0/dataset/CelebA/Img/img_align_celeba/",style_path="/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/",target_width=128)
+X,style=load_data(content_path="/data/unagi0/dataset/CelebA/Img/img_align_celeba/",style_path="/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/",target_width=256)
 print("succesfully data loaded!")
-
+"""
 X_train=[]
 X_test=[]
 for i in range(len(X)):
     X_train.append(X[i][:-10])
     X_test.append(X[i][-10:])
 del X
-
-
+"""
+xxx = Image.open(glob.glob("/data/unagi0/dataset/CelebA/Img/img_align_celeba/*.jpg")[0]).convert('RGB')
+xxx = np.array(image.resize((8, int(8*218/178)), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1)[]
 input = X_train[-1][1:2]
 link = Link(x=input.shape)
 link.to_gpu()
