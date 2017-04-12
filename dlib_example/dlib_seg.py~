@@ -1,0 +1,33 @@
+import sys
+import os
+import dlib
+import cv2
+import numpy as np
+
+def parts_detection(im_path,predictor):
+
+    im = cv2.imread(im_path)
+    dets = detector(im, 1)
+
+    if len(dets)!=0:
+        print("Number of faces detected: {}".format(len(dets)))
+        
+        for k, face in enumerate(dets):
+            shape = predictor(im, face)
+            face = np.array([[face.part(i).x, face.part(i).y] for i in range(68)])
+            
+            r_eye_center = np.average(face[36:42],axis = 0)
+            r_eye = np.array([-0.2*r_eye_center+1.2*np.array(face[36][0],face[37][1]),
+            l_eye_center = np.average(face[42:48],axis = 0)
+
+
+
+
+if __name__=="__main__":
+
+    predictor_path = "~/dlib-19.3/shape_predictor_68_face_landmarks.dat"
+
+    image_path = "image1.jpg"
+
+    detector = dlib.get_frontal_face_detector()
+    predictor = dlib.shape_predictor(predictor_path)
