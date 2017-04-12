@@ -52,7 +52,7 @@ def parts_detection(im_path,predictor):
             mouse_x_scale = 1.3
             mouse_y_scale = 2.7
             mouse_center = np.average(face[60:68],axis = 0)
-            mouse = np.vstack([np.array([1-mouse_x_scale,1-mouse_y_scale])*mouse_center+np.array([mouse_x_scale*face[48][0],mouse_y_scale*face[50][1]]),np.array([1-mouse_x_scale,1-mouse_y_scale])*mouse_center+np.array([mouse_x_scale*face[54][0],mouse_y_scale*face[57][1]])]).astype(np.uint32)
+            mouse = np.vstack([np.array([1-mouse_x_scale,1-mouse_y_scale])*mouse_center+np.array([mouse_x_scale*face[48][0],mouse_y_scale*face[51][1]]),np.array([1-mouse_x_scale,1-mouse_y_scale])*mouse_center+np.array([mouse_x_scale*face[54][0],mouse_y_scale*face[57][1]])]).astype(np.uint32)
             mouse_mask = mask.copy()
             mouse_mask[mouse[0][1]:mouse[1][1],mouse[0][0]:mouse[1][0]] = 1
 
