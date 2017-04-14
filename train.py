@@ -8,7 +8,7 @@ import glob
 import time
 from tqdm import tqdm
 
-from model import FaceSwapNet
+from model import FaceSwapNet2 as net
 from model import VGG19
 
 def conv_setup(ORIGINAL_VGG,VGG):
@@ -33,36 +33,37 @@ def conv_setup(ORIGINAL_VGG,VGG):
     
 def load_data(content_path, style_path, target_width):
     X=[]
-    """
     X_8=[]
     X_16=[]
     X_32=[]
     X_64=[]
-    X_128=[]    
+    X_128=[]  
+    """
     for path in tqdm(glob.glob(content_path+"*.jpg")):
         image = Image.open(path).convert('RGB')
-        X_8.append(np.array(image.resize((8, int(8*218/178)), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
-        X_16.append(np.array(image.resize((16, 2*int(8*218/178)), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
-        X_32.append(np.array(image.resize((32, 4*int(8*218/178)), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
-        X_64.append(np.array(image.resize((64, 8*int(8*218/178)), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
-        X_128.append(np.array(image.resize((128, 16*int(8*218/178)), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
-    np.save("/data/unagi0/xenon/various_size_faces/X_8.npy",np.array(X_8))
-    np.save("/data/unagi0/xenon/various_size_faces/X_16.npy",np.array(X_16))
-    np.save("/data/unagi0/xenon/various_size_faces/X_32.npy",np.array(X_32))
-    np.save("/data/unagi0/xenon/various_size_faces/X_64.npy",np.array(X_64))
-    np.save("/data/unagi0/xenon/various_size_faces/X_128.npy",np.array(X_128))
-        
+        w,h = image.size
+        X_8.append(np.array(image.resize((8, 8*h//w), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
+        X_16.append(np.array(image.resize((16, 2*(8*h//w)), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
+        X_32.append(np.array(image.resize((32, 4*(8*h//w)), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
+        X_64.append(np.array(image.resize((64, 8*(8*h//w)), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
+        X_128.append(np.array(image.resize((128, 16*(8*h//w)), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
+    np.save("/data/unagi0/xenogu/various_size_faces2/X_8.npy",np.array(X_8))
+    np.save("/data/unagi0/xenogu/various_size_faces2/X_16.npy",np.array(X_16))
+    np.save("/data/unagi0/xenogu/various_size_faces2/X_32.npy",np.array(X_32))
+    np.save("/data/unagi0/xenogu/various_size_faces2/X_64.npy",np.array(X_64))
+    np.save("/data/unagi0/xenogu/various_size_faces2/X_128.npy",np.array(X_128))
+      
     X.append(X_8) 
     X.append(X_16)
     X.append(X_32)
     X.append(X_64)
     X.append(X_128)   
     """
-    X_8=np.load("/data/unagi0/xenon/various_size_faces/X_8.npy")
-    X_16=np.load("/data/unagi0/xenon/various_size_faces/X_16.npy")
-    X_32=np.load("/data/unagi0/xenon/various_size_faces/X_32.npy")
-    X_64=np.load("/data/unagi0/xenon/various_size_faces/X_64.npy")
-    X_128=np.load("/data/unagi0/xenon/various_size_faces/X_128.npy")
+    X_8  =np.load("/data/unagi0/xenogu/various_size_faces2/X_8.npy")
+    X_16 =np.load("/data/unagi0/xenogu/various_size_faces2/X_16.npy")
+    X_32 =np.load("/data/unagi0/xenogu/various_size_faces2/X_32.npy")
+    X_64 =np.load("/data/unagi0/xenogu/various_size_faces2/X_64.npy")
+    X_128=np.load("/data/unagi0/xenogu/various_size_faces2/X_128.npy")
     
     X.append(X_8) 
     X.append(X_16)
@@ -71,6 +72,7 @@ def load_data(content_path, style_path, target_width):
     X.append(X_128)   
     
     style=[]
+    """
     for path in glob.glob(style_path+"*.jpg"):
         image = Image.open(path).convert('RGB')
         width, height = image.size
@@ -78,7 +80,7 @@ def load_data(content_path, style_path, target_width):
         style.append(np.array(image.resize((target_width, target_height), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
     
     style=np.array(style)
-    
+    """
     return X,style
 
 
@@ -100,9 +102,10 @@ serializers.load_hdf5("/home/mil/tanaka/seminar/portrait/fast_portrait/vgg19.mod
 vgg=conv_setup(original_vgg19,vgg)
 del original_vgg19
 
-cnn=FaceSwapNet()
+cnn=net()
+serializers.load_hdf5("PortraitModel_168964582899.model",cnn)
 
-X,style=load_data(content_path="/data/unagi0/dataset/CelebA/Img/img_align_celeba/",style_path="/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/",target_width=128)
+X,style=load_data(content_path="/data/unagi0/xenogu/celeb160x120/",style_path="/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/",target_width=128)
 print("succesfully data loaded!")
 
 X_train=[]
@@ -124,9 +127,10 @@ xp=cnn.xp
 N=len(X_train[0])
 batch_size=16
 kernel=3
-alpha=1.0
-beta=0
-gamma=1e-5
+
+c_t=2500.
+alpha=24000
+gamma=1e-4
 n_epoch=10000
 save_model_interval=1
 save_image_interval=400
@@ -152,13 +156,10 @@ del patch,patch_norm
 style_patch_norm=[xp.array(np.load("/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/style_patch_norm"+name+".npy"),xp.float32) for name in ["3_1","4_1"]]
 style_patch=[xp.array(np.load("/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/style_patch"+name+".npy"),xp.float32) for name in ["3_1","4_1"]]
 
-
 for epoch in range(1,n_epoch+1):
     print("epoch",epoch)
     perm=np.random.permutation(N)
     for i in range(0,N,batch_size):
-        if beta<0.4:
-            beta+=0.0001
         print(i,N,batch_size)
         cnn.zerograds()
         vgg.zerograds()
@@ -178,7 +179,9 @@ for epoch in range(1,n_epoch+1):
         swap_feature=vgg(swap_X)
         content_feature=vgg(contents)
         ## content loss
-        L_content=F.mean_squared_error(Variable(content_feature["4_2"].data), swap_feature["4_2"])
+        L_content=F.elu(F.mean_squared_error(Variable(content_feature["4_2"].data), swap_feature["4_2"])/c_t-1)
+        alpha = alpha + L_content.data*10
+        print alpha
         ## style loss
         L_style=0
         for s,name in enumerate(["3_1","4_1"]):
@@ -187,16 +190,26 @@ for epoch in range(1,n_epoch+1):
         ## total variation loss
         L_tv=total_variation(swap_X)
 
-        L=alpha*L_content+beta*L_style+gamma*L_tv
+        L=alpha*L_content+L_style+gamma*L_tv
         L.backward()
         optimizer.update()
 
 
         if i%save_image_interval==0:
-            for k,X in enumerate(swap_X.data):
-                X = xp.transpose(X+xp.array([[[104]],[[117]],[[124]]]), (1,2,0))
-                Image.fromarray(cuda.to_cpu(X)[:,:,::-1].astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+str(k)+"_"+str(beta)+".jpg")
-        print("content loss={} style loss={} tv loss={}".format(L_content.data/batch_size,L_style.data/batch_size,L_tv.data/batch_size))
+            if batch_size!=16:
+                X = xp.transpose(swap_X.data[0]+xp.array([[[104]],[[117]],[[124]]]), (1,2,0))
+                Image.fromarray(np.clip(cuda.to_cpu(X)[:,:,::-1],0,255).astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+".jpg")
+            else:
+                image=[]
+                w = swap_X.shape[3]
+                for i in range(4):
+                    X = np.transpose(cuda.to_cpu(swap_X.data[i*4:i*4+4])+np.array([[[104]],[[117]],[[124]]]), (0,2,3,1)).reshape(-1,w,3)
+                    image.append(X)
+                    X = np.transpose(cuda.to_cpu(contents.data[i*4:i*4+4])+np.array([[[104]],[[117]],[[124]]]), (0,2,3,1)).reshape(-1,w,3)
+                    image.append(X)
+                image = np.concatenate(image,axis=1)
+                Image.fromarray(np.clip(image[:,:,::-1],0,255).astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+".jpg")
+        print("content loss={} style loss={} tv loss={}".format(L_content.data,L_style.data,L_tv.data))
     #with open("log.txt","w") as f:
     #    f.write("content loss={} style loss={} tv loss={}".format(sum_lc/N,sum_ls/N,sum_lt/N)+str("\n"))
 

@@ -32,11 +32,11 @@ class Block(chainer.Chain):
     def __init__(self, n_in, N):
         super(Block,self).__init__(
             c1 = L.Convolution2D(n_in, N, 3, stride=1, pad=1),
-            i1 = InstanceNormalization(N),
+            i1 = L.BatchNormalization(N),
             c2 = L.Convolution2D(N, N, 3, stride=1, pad=1),
-            i2 = InstanceNormalization(N),
+            i2 = L.BatchNormalization(N),
             c3 = L.Convolution2D(N, N, 1, stride=1, pad=0),
-            i3 = InstanceNormalization(N)
+            i3 = L.BatchNormalization(N)
         )
     
     def __call__(self, x, test=False):
@@ -46,6 +46,24 @@ class Block(chainer.Chain):
         
         return h
 
+class Bottleneck(chainer.Chain):
+    def __init__(self, N, N_h):
+        super(Bottleneck,self).__init__(
+            c1 = L.Convolution2D(N, N_h, 1, stride=1, pad=0),
+            b1 = L.BatchNormalization(N_h),
+            c2 = L.Convolution2D(N_h, N_h, 3, stride=1, pad=1),
+            b2 = L.BatchNormalization(N_h),
+            c3 = L.Convolution2D(N_h, N, 1, stride=1, pad=0),
+            b3 = L.BatchNormalization(N)            
+        )
+    
+    def __call__(self, x, test=False):
+        h = F.leaky_relu(self.b1(self.c1(x)))
+        h = F.leaky_relu(self.b2(self.c2(h)))
+        h = self.b3(self.c3(h))
+        return h
+        
+        
 class FaceSwapNet(chainer.Chain):
     
     def __init__(self):
@@ -94,7 +112,19 @@ class FaceSwapNet(chainer.Chain):
         h5 = F.sigmoid(self.fin_conv(h5))
         
         return h5*255
-
+    def local_patch(self, content, style_patch, style_patch_norm):
+        
+        xp = cuda.get_array_module(content.data)
+        b,ch,h,w = content.data.shape
+        correlation = F.convolution_2d(Variable(content.data,volatile=True), W=style_patch_norm.data, stride=1, pad=0)
+        indices = xp.argmax(correlation.data, axis=1)
+        nearest_style_patch = style_patch.data.take(indices, axis=0).reshape(b,-1,3*3*ch).transpose(1,0,2).reshape(-1,b*9*ch)
+        content = F.convolution_2d(content, W=Variable(xp.identity(ch*3*3,dtype=xp.float32).reshape((ch*3*3,ch,3,3))),stride=1,pad=0).transpose(2,3,0,1).reshape(-1,b*3*3*ch)
+        c_norm = content/xp.linalg.norm(content.data,axis=1,keepdims=True)
+        style_loss = F.mean_squared_error(content, nearest_style_patch)+F.mean_squared_error(xp.identity(content.shape[0],dtype=xp.float32),F.matmul(c_norm,F.transpose(c_norm)))*40000
+        
+        return style_loss
+    """
     def local_patch(self, content, style_patch, style_patch_norm):
         
         xp = cuda.get_array_module(content.data)
@@ -104,6 +134,83 @@ class FaceSwapNet(chainer.Chain):
         nearest_style_patch = style_patch.data.take(indices, axis=0).reshape(b,-1)
         content = F.convolution_2d(content, W=Variable(xp.identity(ch*3*3,dtype=xp.float32).reshape((ch*3*3,ch,3,3))),stride=1,pad=0).transpose(0,2,3,1).reshape(b,-1)
         style_loss = F.mean_squared_error(content, nearest_style_patch)
+        return style_loss
+        """
+class FaceSwapNet2(chainer.Chain):
+    
+    def __init__(self):
+        super(FaceSwapNet2, self).__init__(
+            c1 = L.Convolution2D(3, 64, 5, stride=1, pad=2),
+            c2 = L.Convolution2D(3, 64, 5, stride=1, pad=2),
+            c3 = L.Convolution2D(3, 64, 5, stride=1, pad=2),
+            c4 = L.Convolution2D(3, 64, 5, stride=1, pad=2),
+            c5 = L.Convolution2D(3, 64, 5, stride=1, pad=2),
+            c2_2 = L.Convolution2D(128, 64, 5, stride=1, pad=2),
+            c3_2 = L.Convolution2D(128, 64, 5, stride=1, pad=2),
+            c4_2 = L.Convolution2D(128, 64, 5, stride=1, pad=2),
+            c5_2 = L.Convolution2D(128, 64, 5, stride=1, pad=2),
+            b1 = Bottleneck(64,64),
+            
+            b2_1 = Bottleneck(64,32),
+            b2_2 = Bottleneck(64,32),
+            b2_3 = Bottleneck(64,32),
+            
+            b3_1 = Bottleneck(64,32),
+            b3_2 = Bottleneck(64,32),
+            b3_3 = Bottleneck(64,32),
+            
+            b4_1 = Bottleneck(64,32),
+            b4_2 = Bottleneck(64,32),
+            b4_3 = Bottleneck(64,32),
+            
+            b5_1 = Bottleneck(64,32),
+            b5_2 = Bottleneck(64,32),
+            b5_3 = Bottleneck(64,32),
+            
+            fin_conv = L.Convolution2D(64, 3, 1, stride=1, pad=0),      
+        )
+        
+    def __call__(self, x1, x2, x3, x4, x5, test=False):
+        h = self.c1(x1)
+        h1 =  F.leaky_relu(self.b1(h, test=test)+h)
+        h1 = F.unpooling_2d(h1, ksize=2, stride=2, pad=0, cover_all=False)
+        
+        h = self.c2(x2)
+        h = F.leaky_relu(self.b2_1(h, test=test)+h)
+        h2 = F.leaky_relu(self.b2_2(self.c2_2(F.concat([h1, h])))+h+h1)
+        h2 = F.leaky_relu(self.b2_3(h2, test=test)+h2)
+        h2 = F.unpooling_2d(h2, ksize=2, stride=2, pad=0, cover_all=False)
+        
+        h = self.c3(x3)
+        h = F.leaky_relu(self.b3_1(h, test=test)+h)
+        h3 = F.leaky_relu(self.b3_2(self.c3_2(F.concat([h2, h])))+h+h2)
+        h3 = F.leaky_relu(self.b3_3(h3, test=test)+h3)
+        h3 = F.unpooling_2d(h3, ksize=2, stride=2, pad=0, cover_all=False)
+        
+        h = self.c4(x4)
+        h = F.leaky_relu(self.b4_1(h, test=test)+h)
+        h4 = F.leaky_relu(self.b4_2(self.c4_2(F.concat([h3, h])))+h+h3)
+        h4 = F.leaky_relu(self.b4_3(h4, test=test)+h4)
+        h4 = F.unpooling_2d(h4, ksize=2, stride=2, pad=0, cover_all=False)
+        
+        h = self.c5(x5)
+        h = F.leaky_relu(self.b5_1(h, test=test)+h)
+        h5 = F.leaky_relu(self.b5_2(self.c4_2(F.concat([h4, h])))+h+h4)
+        h5 = F.leaky_relu(self.b5_3(h5, test=test)+h5)
+        h5 = F.sigmoid(self.fin_conv(h5))
+        
+        return h5*255
+
+    def local_patch(self, content, style_patch, style_patch_norm):
+        
+        xp = cuda.get_array_module(content.data)
+        b,ch,h,w = content.data.shape
+        correlation = F.convolution_2d(Variable(content.data,volatile=True), W=style_patch_norm.data, stride=1, pad=0)
+        indices = xp.argmax(correlation.data, axis=1)
+        nearest_style_patch = style_patch.data.take(indices, axis=0).reshape(b,-1,3*3*ch).transpose(1,0,2).reshape(-1,b,9*ch)
+        content = F.convolution_2d(content, W=Variable(xp.identity(ch*3*3,dtype=xp.float32).reshape((ch*3*3,ch,3,3))),stride=1,pad=0).transpose(2,3,0,1).reshape(-1,b,9*ch)
+        c_norm = (content/xp.linalg.norm(content.data,axis=2,keepdims=True)).reshape(-1,b*9*ch)
+        style_loss = F.mean_squared_error(content, nearest_style_patch)+F.mean_squared_error(xp.identity(content.shape[0],dtype=xp.float32)*b,F.matmul(c_norm,F.transpose(c_norm)))*200
         
         return style_loss
     
