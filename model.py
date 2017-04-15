@@ -23,8 +23,8 @@ class InstanceNormalization(link.Link):
         var = xp.var(x.data, axis=(2,3), keepdims=True)
 
         normalized_x = (x - mean) / xp.sqrt(var + self.eps) 
-        
-        return (self.gamma.reshape(1,-1,1,1)*xp.ones(x.shape))*normalized_x + self.beta.reshape(1,-1,1,1)*xp.ones(x.shape)
+        print Variable(xp.ones((1,4,1,1),dtype=xp.float32))*xp.ones((4,4,4,4),dtype=xp.float32)
+        return (self.gamma.reshape(1,-1,1,1)*xp.ones(x.shape,dtype=xp.float32))*normalized_x + self.beta.reshape(1,-1,1,1)*xp.ones(x.shape,dtype=xp.float32)
 
 
 class Block(chainer.Chain):
@@ -32,11 +32,11 @@ class Block(chainer.Chain):
     def __init__(self, n_in, N):
         super(Block,self).__init__(
             c1 = L.Convolution2D(n_in, N, 3, stride=1, pad=1),
-            i1 = L.BatchNormalization(N),
+            i1 = InstanceNormalization(N),
             c2 = L.Convolution2D(N, N, 3, stride=1, pad=1),
-            i2 = L.BatchNormalization(N),
+            i2 = InstanceNormalization(N),
             c3 = L.Convolution2D(N, N, 1, stride=1, pad=0),
-            i3 = L.BatchNormalization(N)
+            i3 = InstanceNormalization(N)
         )
     
     def __call__(self, x, test=False):
@@ -50,11 +50,11 @@ class Bottleneck(chainer.Chain):
     def __init__(self, N, N_h):
         super(Bottleneck,self).__init__(
             c1 = L.Convolution2D(N, N_h, 1, stride=1, pad=0),
-            b1 = L.BatchNormalization(N_h),
+            b1 = InstanceNormalization(N_h),
             c2 = L.Convolution2D(N_h, N_h, 3, stride=1, pad=1),
-            b2 = L.BatchNormalization(N_h),
+            b2 = InstanceNormalization(N_h),
             c3 = L.Convolution2D(N_h, N, 1, stride=1, pad=0),
-            b3 = L.BatchNormalization(N)            
+            b3 = InstanceNormalization(N)            
         )
     
     def __call__(self, x, test=False):
