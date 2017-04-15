@@ -103,7 +103,7 @@ vgg=conv_setup(original_vgg19,vgg)
 del original_vgg19
 
 cnn=net()
-serializers.load_hdf5("PortraitModel_168964582899.model",cnn)
+serializers.load_hdf5("1e4_200_res.model",cnn)
 
 X,style=load_data(content_path="/data/unagi0/xenogu/celeb160x120/",style_path="/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/",target_width=128)
 print("succesfully data loaded!")
@@ -128,8 +128,8 @@ N=len(X_train[0])
 batch_size=16
 kernel=3
 
-c_t=2500.
-alpha=24000
+c_t=3000.
+alpha=24000.
 gamma=1e-4
 n_epoch=10000
 save_model_interval=1
@@ -214,5 +214,5 @@ for epoch in range(1,n_epoch+1):
     #    f.write("content loss={} style loss={} tv loss={}".format(sum_lc/N,sum_ls/N,sum_lt/N)+str("\n"))
 
     if epoch%save_model_interval==0:
-        serializers.save_hdf5('PortraitModel_{}.model'.format(str(L.data/N).replace('.','')), cnn)
+        serializers.save_hdf5(str(int(alpha))+'PortraitModel_{}.model'.format(str(L.data/N).replace('.','')), cnn)
         

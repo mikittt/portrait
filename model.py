@@ -24,7 +24,7 @@ class InstanceNormalization(link.Link):
 
         normalized_x = (x - mean) / xp.sqrt(var + self.eps) 
         
-        return self.gamma*normalized_x + self.beta
+        return (self.gamma.reshape(1,-1,1,1)*xp.ones(x.shape))*normalized_x + self.beta.reshape(1,-1,1,1)*xp.ones(x.shape)
 
 
 class Block(chainer.Chain):
@@ -210,7 +210,7 @@ class FaceSwapNet2(chainer.Chain):
         nearest_style_patch = style_patch.data.take(indices, axis=0).reshape(b,-1,3*3*ch).transpose(1,0,2).reshape(-1,b,9*ch)
         content = F.convolution_2d(content, W=Variable(xp.identity(ch*3*3,dtype=xp.float32).reshape((ch*3*3,ch,3,3))),stride=1,pad=0).transpose(2,3,0,1).reshape(-1,b,9*ch)
         c_norm = (content/xp.linalg.norm(content.data,axis=2,keepdims=True)).reshape(-1,b*9*ch)
-        style_loss = F.mean_squared_error(content, nearest_style_patch)+F.mean_squared_error(xp.identity(content.shape[0],dtype=xp.float32)*b,F.matmul(c_norm,F.transpose(c_norm)))*200
+        style_loss = F.mean_squared_error(content, nearest_style_patch)+F.mean_squared_error(xp.identity(content.shape[0],dtype=xp.float32)*b,F.matmul(c_norm,F.transpose(c_norm)))*250
         
         return style_loss
     
