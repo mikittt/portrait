@@ -33,6 +33,7 @@ def conv_setup(ORIGINAL_VGG,VGG):
     
 def load_data(content_path, style_path, target_width):
     X=[]
+<<<<<<< HEAD
     X_8=[]
     X_16=[]
     X_32=[]
@@ -71,6 +72,22 @@ def load_data(content_path, style_path, target_width):
     X.append(X_64)
     X.append(X_128)   
     
+=======
+    for size in [8,16,32,64,128]:
+        
+        X_tmp=[]
+        """
+        for path in glob.glob(content_path+"*.jpg"):
+            image = Image.open(path).convert('RGB')
+            X_tmp.append(np.array(image.resize((size, size), Image.ANTIALIAS))[:,:,::-1].transpose(2,0,1))
+        np.save("X_"+str(size)+".npy",np.array(X_tmp))
+        """
+        
+        X_tmp=np.load("X_"+str(size)+".npy")
+        X.append(np.array(X_tmp))
+        print("size:{} {}loaded".format(size,len(X_tmp)))
+        
+>>>>>>> df321a8fd09139ec3f2e10dd38e4ef500eeac497
     style=[]
     """
     for path in glob.glob(style_path+"*.jpg"):
@@ -127,13 +144,24 @@ xp=cnn.xp
 N=len(X_train[0])
 batch_size=16
 kernel=3
+<<<<<<< HEAD
 
 c_t=2800.
 alpha=24000.
+=======
+alpha=1.0
+beta=0
+>>>>>>> df321a8fd09139ec3f2e10dd38e4ef500eeac497
 gamma=1e-5
 n_epoch=10000
 save_model_interval=1
 save_image_interval=400
+<<<<<<< HEAD
+=======
+
+style_patch=[]
+style_patch_norm=[]
+>>>>>>> df321a8fd09139ec3f2e10dd38e4ef500eeac497
 """
 style_patch=[]
 style_patch_norm=[]
@@ -146,21 +174,39 @@ for name in ["3_1","4_1"]:
     
     patch=xp.array([style_feature[name][0,:,j:j+kernel,i:i+kernel].data for j in range(style_feature[name].shape[2]-kernel+1) for i in range(style_feature[name].shape[3]-kernel+1)],dtype=xp.float32)
     
+<<<<<<< HEAD
     np.save("data/style/style_patch_norm"+name+".npy",cuda.to_cpu(patch_norm))
     np.save("data/style/style_patch"+name+".npy",cuda.to_cpu(patch))
+=======
+    np.save("style_patch_norm"+name+".npy",cuda.to_cpu(patch_norm))
+    np.save("style_patch"+name+".npy",cuda.to_cpu(patch))
+>>>>>>> df321a8fd09139ec3f2e10dd38e4ef500eeac497
 
     style_patch.append(patch)
     style_patch_norm.append(patch_norm)
 del patch,patch_norm
 """
+<<<<<<< HEAD
 style_patch_norm=[xp.concatenate((xp.array(np.load("/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/style_patch_norm"+name+".npy"),xp.float32),xp.array(np.load("/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/style_patch_norm"+name+".npy"),xp.float32)[:,:,:,::-1]),axis=0) for name in ["3_1","4_1"]]
 style_patch=[xp.concatenate((xp.array(np.load("/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/style_patch"+name+".npy"),xp.float32),xp.array(np.load("/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/style_patch"+name+".npy"),xp.float32)),axis=0) for name in ["3_1","4_1"]]
+=======
+
+style_patch_norm=[xp.array(np.load("style_patch_norm"+name+".npy"),xp.float32) for name in ["3_1","4_1"]]
+style_patch=[xp.array(np.load("style_patch"+name+".npy"),xp.float32) for name in ["3_1","4_1"]]
+
+>>>>>>> df321a8fd09139ec3f2e10dd38e4ef500eeac497
 
 for epoch in range(1,n_epoch+1):
     print(("epoch",epoch))
     perm=np.random.permutation(N)
     for i in range(0,N,batch_size):
+<<<<<<< HEAD
         print((i,N,batch_size))
+=======
+        if beta<0.4:
+            beta+=0.0001
+        print(i,N,batch_size)
+>>>>>>> df321a8fd09139ec3f2e10dd38e4ef500eeac497
         cnn.zerograds()
         vgg.zerograds()
 
@@ -190,12 +236,17 @@ for epoch in range(1,n_epoch+1):
         ## total variation loss
         L_tv=total_variation(swap_X)
 
+<<<<<<< HEAD
         L=alpha*L_content+L_style+gamma*L_tv
+=======
+        L=alpha*L_content+beta*L_style+gamma*L_tv
+>>>>>>> df321a8fd09139ec3f2e10dd38e4ef500eeac497
         L.backward()
         optimizer.update()
 
 
         if i%save_image_interval==0:
+<<<<<<< HEAD
             if batch_size!=16:
                 X = xp.transpose(swap_X.data[0]+xp.array([[[104]],[[117]],[[124]]]), (1,2,0))
                 Image.fromarray(np.clip(cuda.to_cpu(X)[:,:,::-1],0,255).astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+".jpg")
@@ -210,6 +261,12 @@ for epoch in range(1,n_epoch+1):
                 image = np.concatenate(image,axis=1)
                 Image.fromarray(np.clip(image[:,:,::-1],0,255).astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+".jpg")
         print(("content loss={} style loss={} tv loss={}".format(L_content.data,L_style.data,L_tv.data)))
+=======
+            for k,X in enumerate(swap_X.data):
+                X = xp.transpose(X+xp.array([[[104]],[[117]],[[124]]]), (1,2,0))
+                Image.fromarray(cuda.to_cpu(X)[:,:,::-1].astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+str(k)+"_"+str(beta)+".jpg")
+        print("content loss={} style loss={} tv loss={}".format(L_content.data/batch_size,L_style.data/batch_size,L_tv.data/batch_size))
+>>>>>>> df321a8fd09139ec3f2e10dd38e4ef500eeac497
     #with open("log.txt","w") as f:
     #    f.write("content loss={} style loss={} tv loss={}".format(sum_lc/N,sum_ls/N,sum_lt/N)+str("\n"))
 

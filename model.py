@@ -135,7 +135,7 @@ class FaceSwapNet(chainer.Chain):
         content = F.convolution_2d(content, W=Variable(xp.identity(ch*3*3,dtype=xp.float32).reshape((ch*3*3,ch,3,3))),stride=1,pad=0).transpose(0,2,3,1).reshape(b,-1)
         style_loss = F.mean_squared_error(content, nearest_style_patch)
         return style_loss
-        """
+    """
 class FaceSwapNet2(chainer.Chain):
     
     def __init__(self):
