@@ -140,7 +140,6 @@ class FaceSwapNet2(chainer.Chain):
     
     def __init__(self):
         super(FaceSwapNet2, self).__init__(
-            c1 = L.Convolution2D(3, 64, 5, stride=1, pad=2),
             c2 = L.Convolution2D(3, 64, 5, stride=1, pad=2),
             c3 = L.Convolution2D(3, 64, 5, stride=1, pad=2),
             c4 = L.Convolution2D(3, 64, 5, stride=1, pad=2),
@@ -149,11 +148,8 @@ class FaceSwapNet2(chainer.Chain):
             c3_2 = L.Convolution2D(128, 64, 5, stride=1, pad=2),
             c4_2 = L.Convolution2D(128, 64, 5, stride=1, pad=2),
             c5_2 = L.Convolution2D(128, 64, 5, stride=1, pad=2),
-            b1 = Bottleneck(64,64),
             
             b2_1 = Bottleneck(64,32),
-            b2_2 = Bottleneck(64,32),
-            b2_3 = Bottleneck(64,32),
             
             b3_1 = Bottleneck(64,32),
             b3_2 = Bottleneck(64,32),
@@ -170,15 +166,9 @@ class FaceSwapNet2(chainer.Chain):
             fin_conv = L.Convolution2D(64, 3, 1, stride=1, pad=0),      
         )
         
-    def __call__(self, x1, x2, x3, x4, x5, test=False):
-        h = self.c1(x1)
-        h1 =  F.leaky_relu(self.b1(h, test=test)+h)
-        h1 = F.unpooling_2d(h1, ksize=2, stride=2, pad=0, cover_all=False)
-        
+    def __call__(self, x1, x2, x3, x4, x5, test=False):        
         h = self.c2(x2)
-        h = F.leaky_relu(self.b2_1(h, test=test)+h)
-        h2 = F.leaky_relu(self.b2_2(self.c2_2(F.concat([h1, h])))+h+h1)
-        h2 = F.leaky_relu(self.b2_3(h2, test=test)+h2)
+        h2 = F.leaky_relu(self.b2_1(h, test=test)+h)
         h2 = F.unpooling_2d(h2, ksize=2, stride=2, pad=0, cover_all=False)
         
         h = self.c3(x3)

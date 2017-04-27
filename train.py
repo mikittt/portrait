@@ -103,7 +103,7 @@ vgg=conv_setup(original_vgg19,vgg)
 del original_vgg19
 
 cnn=net()
-serializers.load_hdf5("1e4_200_res.model",cnn)
+#serializers.load_hdf5("1e4_200_res.model",cnn)
 
 X,style=load_data(content_path="/data/unagi0/xenogu/celeb160x120/",style_path="/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/",target_width=128)
 print("succesfully data loaded!")
@@ -128,9 +128,9 @@ N=len(X_train[0])
 batch_size=16
 kernel=3
 
-c_t=3000.
+c_t=2800.
 alpha=24000.
-gamma=1e-4
+gamma=1e-5
 n_epoch=10000
 save_model_interval=1
 save_image_interval=400
@@ -153,14 +153,14 @@ for name in ["3_1","4_1"]:
     style_patch_norm.append(patch_norm)
 del patch,patch_norm
 """
-style_patch_norm=[xp.array(np.load("/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/style_patch_norm"+name+".npy"),xp.float32) for name in ["3_1","4_1"]]
-style_patch=[xp.array(np.load("/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/style_patch"+name+".npy"),xp.float32) for name in ["3_1","4_1"]]
+style_patch_norm=[xp.concatenate((xp.array(np.load("/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/style_patch_norm"+name+".npy"),xp.float32),xp.array(np.load("/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/style_patch_norm"+name+".npy"),xp.float32)[:,:,:,::-1]),axis=0) for name in ["3_1","4_1"]]
+style_patch=[xp.concatenate((xp.array(np.load("/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/style_patch"+name+".npy"),xp.float32),xp.array(np.load("/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/style_patch"+name+".npy"),xp.float32)),axis=0) for name in ["3_1","4_1"]]
 
 for epoch in range(1,n_epoch+1):
-    print("epoch",epoch)
+    print(("epoch",epoch))
     perm=np.random.permutation(N)
     for i in range(0,N,batch_size):
-        print(i,N,batch_size)
+        print((i,N,batch_size))
         cnn.zerograds()
         vgg.zerograds()
 
@@ -181,7 +181,7 @@ for epoch in range(1,n_epoch+1):
         ## content loss
         L_content=F.elu(F.mean_squared_error(Variable(content_feature["4_2"].data), swap_feature["4_2"])/c_t-1)
         alpha = alpha + L_content.data*10
-        print alpha
+        print(alpha)
         ## style loss
         L_style=0
         for s,name in enumerate(["3_1","4_1"]):
@@ -209,7 +209,7 @@ for epoch in range(1,n_epoch+1):
                     image.append(X)
                 image = np.concatenate(image,axis=1)
                 Image.fromarray(np.clip(image[:,:,::-1],0,255).astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+".jpg")
-        print("content loss={} style loss={} tv loss={}".format(L_content.data,L_style.data,L_tv.data))
+        print(("content loss={} style loss={} tv loss={}".format(L_content.data,L_style.data,L_tv.data)))
     #with open("log.txt","w") as f:
     #    f.write("content loss={} style loss={} tv loss={}".format(sum_lc/N,sum_ls/N,sum_lt/N)+str("\n"))
 
