@@ -207,62 +207,71 @@ class FaceSwapNet2(chainer.Chain):
         return style_loss
     
     
-class FaceSwapNet3(chainer.Chain):
+class Unet(chainer.Chain):
     
     def __init__(self):
-        super(FaceSwapNet2, self).__init__(
-            c1 = L.Convolution2D(3, 64, 5, stride=2, pad=2),
-            c2 = L.Convolution2D(64, 128, 5, stride=2, pad=2),
-            c3 = L.Convolution2D(128, 256, 5, stride=2, pad=2),
-            c4 = L.Convolution2D(256, 512, 5, stride=2, pad=2),
-            c5 = L.Convolution2D(512, 512, 5, stride=2, pad=2),
-            c3_2 = L.Convolution2D(128, 64, 5, stride=1, pad=2),
-            c4_2 = L.Convolution2D(128, 64, 5, stride=1, pad=2),
-            c5_2 = L.Convolution2D(128, 64, 5, stride=1, pad=2),
-            
-            b2_1 = Bottleneck(64,32),
-            
-            b3_1 = Bottleneck(64,32),
-            b3_2 = Bottleneck(64,32),
-            b3_3 = Bottleneck(64,32),
-            
-            b4_1 = Bottleneck(64,32),
-            b4_2 = Bottleneck(64,32),
-            b4_3 = Bottleneck(64,32),
-            
-            b5_1 = Bottleneck(64,32),
-            b5_2 = Bottleneck(64,32),
-            b5_3 = Bottleneck(64,32),
-            
-            conv = L.Convolution2D(64, 3, 1, stride=1, pad=0), 
-            fin_conv = L.Convolution2D(64, 3, 1, stride=1, pad=0),      
+        super(Unet, self).__init__(
+            c0=L.Convolution2D(3, 32, 3, 1, 1),
+            c1=L.Convolution2D(32, 64, 4, 2, 1),
+            c2=L.Convolution2D(64, 64, 3, 1, 1),
+            c3=L.Convolution2D(64, 128, 4, 2, 1),
+            c4=L.Convolution2D(128, 128, 3, 1, 1),
+            c5=L.Convolution2D(128, 256, 4, 2, 1),
+            c6=L.Convolution2D(256, 256, 3, 1, 1),
+            c7=L.Convolution2D(256, 512, 4, 2, 1),
+            c8=L.Convolution2D(512, 512, 3, 1, 1),
+
+            dc8=L.Deconvolution2D(1024, 512, 4, 2, 1),
+            dc7=L.Convolution2D(512, 256, 3, 1, 1),
+            dc6=L.Deconvolution2D(512, 256, 4, 2, 1),
+            dc5=L.Convolution2D(256, 128, 3, 1, 1),
+            dc4=L.Deconvolution2D(256, 128, 4, 2, 1),
+            dc3=L.Convolution2D(128, 64, 3, 1, 1),
+            dc2=L.Deconvolution2D(128, 64, 4, 2, 1),
+            dc1=L.Convolution2D(64, 32, 3, 1, 1),
+            dc0=L.Convolution2D(64, 3, 3, 1, 1),
+
+            bnc0=L.BatchNormalization(32),
+            bnc1=L.BatchNormalization(64),
+            bnc2=L.BatchNormalization(64),
+            bnc3=L.BatchNormalization(128),
+            bnc4=L.BatchNormalization(128),
+            bnc5=L.BatchNormalization(256),
+            bnc6=L.BatchNormalization(256),
+            bnc7=L.BatchNormalization(512),
+            bnc8=L.BatchNormalization(512),
+
+            bnd8=L.BatchNormalization(512),
+            bnd7=L.BatchNormalization(256),
+            bnd6=L.BatchNormalization(256),
+            bnd5=L.BatchNormalization(128),
+            bnd4=L.BatchNormalization(128),
+            bnd3=L.BatchNormalization(64),
+            bnd2=L.BatchNormalization(64),
+            bnd1=L.BatchNormalization(32)
         )
         
-    def __call__(self, x2, x3, x4, x5, test=False):        
-        h = self.c2(x2)
-        h2 = F.leaky_relu(self.b2_1(h, test=test)+h)
-        h2 = F.unpooling_2d(h2, ksize=2, stride=2, pad=0, cover_all=False)
-        
-        h = self.c3(x3)
-        h = F.leaky_relu(self.b3_1(h, test=test)+h)
-        h3 = F.leaky_relu(self.b3_2(self.c3_2(F.concat([h2, h])))+h+h2)
-        h3 = F.leaky_relu(self.b3_3(h3, test=test)+h3)
-        h3 = F.unpooling_2d(h3, ksize=2, stride=2, pad=0, cover_all=False)
-        
-        h = self.c4(x4)
-        h = F.leaky_relu(self.b4_1(h, test=test)+h)
-        h4 = F.leaky_relu(self.b4_2(self.c4_2(F.concat([h3, h])))+h+h3)
-        h4 = F.leaky_relu(self.b4_3(h4, test=test)+h4)
-        #h4_ = F.sigmoid(self.conv(h4))
-        h4 = F.unpooling_2d(h4, ksize=2, stride=2, pad=0, cover_all=False)
-        
-        h = self.c5(x5)
-        h = F.leaky_relu(self.b5_1(h, test=test)+h)
-        h5 = F.leaky_relu(self.b5_2(self.c4_2(F.concat([h4, h])))+h+h4)
-        h5 = F.leaky_relu(self.b5_3(h5, test=test)+h5)
-        h5 = F.sigmoid(self.fin_conv(h5))
-        
-        return h5*255,h5[:,:,::2,::2]*255
+    def __call__(self, x, test=False):  
+        e0 = F.relu(self.bnc0(self.c0(x), test=test))
+        e1 = F.relu(self.bnc1(self.c1(e0), test=test))
+        e2 = F.relu(self.bnc2(self.c2(e1), test=test))
+        e3 = F.relu(self.bnc3(self.c3(e2), test=test))
+        e4 = F.relu(self.bnc4(self.c4(e3), test=test))
+        e5 = F.relu(self.bnc5(self.c5(e4), test=test))
+        e6 = F.relu(self.bnc6(self.c6(e5), test=test))
+        e7 = F.relu(self.bnc7(self.c7(e6), test=test))
+        e8 = F.relu(self.bnc8(self.c8(e7), test=test))
+
+        d8 = F.relu(self.bnd8(self.dc8(F.concat([e7, e8])), test=test))
+        d7 = F.relu(self.bnd7(self.dc7(d8), test=test))
+        d6 = F.relu(self.bnd6(self.dc6(F.concat([e6, d7])), test=test))
+        d5 = F.relu(self.bnd5(self.dc5(d6), test=test))
+        d4 = F.relu(self.bnd4(self.dc4(F.concat([e4, d5])), test=test))
+        d3 = F.relu(self.bnd3(self.dc3(d4), test=test))
+        d2 = F.relu(self.bnd2(self.dc2(F.concat([e2, d3])), test=test))
+        d1 = F.relu(self.bnd1(self.dc1(d2), test=test))
+        d0 = F.sigmoid(self.dc0(F.concat([e0, d1])))  
+        return d0*255,d0[:,:,::2,::2]*255
 
     def local_patch(self, content, style_patch, style_patch_norm):
         
@@ -273,6 +282,7 @@ class FaceSwapNet3(chainer.Chain):
         nearest_style_patch = style_patch.data.take(indices, axis=0).reshape(b,-1,3*3*ch).transpose(1,0,2).reshape(-1,b,9*ch)
         content = F.convolution_2d(content, W=Variable(xp.identity(ch*3*3,dtype=xp.float32).reshape((ch*3*3,ch,3,3))),stride=1,pad=0).transpose(2,3,0,1).reshape(-1,b,9*ch)
         c_norm = (content/xp.linalg.norm(content.data,axis=2,keepdims=True)).reshape(-1,b*9*ch)
+        print(c_norm.shape)
         style_loss = F.mean_squared_error(content, nearest_style_patch)+F.mean_squared_error(xp.identity(content.shape[0],dtype=xp.float32)*b,F.matmul(c_norm,F.transpose(c_norm)))*250
         
         return style_loss

@@ -8,7 +8,7 @@ import glob
 import time
 from tqdm import tqdm
 
-from model import FaceSwapNet2 as net
+from model import Unet as net
 from model import VGG19
 
 def conv_setup(ORIGINAL_VGG,VGG):
@@ -33,11 +33,11 @@ def conv_setup(ORIGINAL_VGG,VGG):
     
 def load_data(content_path, style_path, target_width):
     X=[]
-    X_8=[]
-    X_16=[]
-    X_32=[]
-    X_64=[]
-    X_128=[]  
+    #X_8=[]
+    #X_16=[]
+    #X_32=[]
+    #X_64=[]
+    #X_128=[]  
     """
     for path in tqdm(glob.glob(content_path+"*.jpg")):
         image = Image.open(path).convert('RGB')
@@ -59,15 +59,15 @@ def load_data(content_path, style_path, target_width):
     X.append(X_64)
     X.append(X_128)   
     """
-    X_8  =np.load("/data/unagi0/xenogu/various_size_faces2/X_8.npy")
-    X_16 =np.load("/data/unagi0/xenogu/various_size_faces2/X_16.npy")
-    X_32 =np.load("/data/unagi0/xenogu/various_size_faces2/X_32.npy")
+    #X_8  =np.load("/data/unagi0/xenogu/various_size_faces2/X_8.npy")
+    #X_16 =np.load("/data/unagi0/xenogu/various_size_faces2/X_16.npy")
+    #X_32 =np.load("/data/unagi0/xenogu/various_size_faces2/X_32.npy")
     X_64 =np.load("/data/unagi0/xenogu/various_size_faces2/X_64.npy")
     X_128=np.load("/data/unagi0/xenogu/various_size_faces2/X_128.npy")
     
-    X.append(X_8) 
-    X.append(X_16)
-    X.append(X_32)
+    #X.append(X_8) 
+    #X.append(X_16)
+    #X.append(X_32)
     X.append(X_64)
     X.append(X_128)   
     
@@ -103,7 +103,7 @@ vgg=conv_setup(original_vgg19,vgg)
 del original_vgg19
 
 cnn=net()
-serializers.load_hdf5("20361PortraitModel_30525540614565942.model",cnn)
+#serializers.load_hdf5("20361PortraitModel_30525540614565942.model",cnn)
 
 X,style=load_data(content_path="/data/unagi0/xenogu/celeb160x120/",style_path="/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/",target_width=128)
 print("succesfully data loaded!")
@@ -129,7 +129,7 @@ batch_size=9
 kernel=3
 
 c_t=2800
-alpha=20361.
+alpha=14000.
 gamma=1e-5
 n_epoch=10000
 save_model_interval=1
@@ -174,15 +174,15 @@ for epoch in range(1,n_epoch+1):
         cnn.zerograds()
         vgg.zerograds()
 
-        x2=xp.array(X_train[1][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
-        x3=xp.array(X_train[2][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
-        x4=xp.array(X_train[3][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
-        x5=xp.array(X_train[4][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
+        #x2=xp.array(X_train[1][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
+        #x3=xp.array(X_train[2][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
+        x4=xp.array(X_train[-2][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
+        x5=xp.array(X_train[-1][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
         
         
-        swap_X,swap_X_small=cnn(x2,x3,x4,x5)
-        contents=Variable(xp.array(X_train[4][perm[i:i+batch_size]],dtype=xp.float32),volatile=True)
-        contents_small=Variable(xp.array(X_train[3][perm[i:i+batch_size]],dtype=xp.float32),volatile=True)
+        swap_X,swap_X_small=cnn(x5)
+        contents=Variable(xp.array(X_train[-1][perm[i:i+batch_size]],dtype=xp.float32),volatile=True)
+        contents_small=Variable(xp.array(X_train[-2][perm[i:i+batch_size]],dtype=xp.float32),volatile=True)
         swap_X-=xp.array([[[[104]],[[117]],[[124]]]])
         contents-=xp.array([[[[104]],[[117]],[[124]]]])
         swap_X_small-=xp.array([[[[104]],[[117]],[[124]]]])
