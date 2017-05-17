@@ -8,7 +8,7 @@ import glob
 import time
 from tqdm import tqdm
 
-from model import Unet as net
+from model import smallUnet as net
 from model import VGG19
 
 def conv_setup(ORIGINAL_VGG,VGG):
@@ -103,7 +103,7 @@ vgg=conv_setup(original_vgg19,vgg)
 del original_vgg19
 
 cnn=net()
-#serializers.load_hdf5("20361PortraitModel_30525540614565942.model",cnn)
+#serializers.load_hdf5("29306PortraitModel_29357366444073456.model",cnn)
 
 X,style=load_data(content_path="/data/unagi0/xenogu/celeb160x120/",style_path="/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/",target_width=128)
 print("succesfully data loaded!")
@@ -128,8 +128,8 @@ N=len(X_train[0])
 batch_size=9
 kernel=3
 
-c_t=2800
-alpha=14000.
+c_t=2000
+alpha=29306.
 gamma=1e-5
 n_epoch=10000
 save_model_interval=1
@@ -196,7 +196,7 @@ for epoch in range(1,n_epoch+1):
         L_content=F.elu(F.mean_squared_error(Variable(content_feature["4_2"].data), swap_feature["4_2"])/c_t-1)
         L_content+=F.elu(F.mean_squared_error(Variable(content_feature_small["4_2"].data), swap_feature_small["4_2"])/c_t-1)
         #L_var = F.mean_squared_error(Variable(content_feature["4_2"].data), swap_feature["4_2"])-F.square(F.mean_absolute_error(Variable(content_feature["4_2"].data), swap_feature["4_2"]))
-        alpha = alpha + L_content.data*10
+        alpha = alpha + L_content.data*30
         print(alpha)
         ## style loss
         L_style=0
@@ -228,9 +228,12 @@ for epoch in range(1,n_epoch+1):
                 image = np.concatenate(image,axis=1)
                 Image.fromarray(np.clip(image[:,:,::-1],0,255).astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+".jpg")
         print(("content loss={} style loss={} tv loss={}".format(L_content.data,L_style.data,L_tv.data)))
+        
+        if i%9999==9998:
+            serializers.save_hdf5(str(int(alpha))+'sunet_{}.model'.format(str(L.data/N).replace('.','')), cnn)
     #with open("log.txt","w") as f:
     #    f.write("content loss={} style loss={} tv loss={}".format(sum_lc/N,sum_ls/N,sum_lt/N)+str("\n"))
 
     if epoch%save_model_interval==0:
-        serializers.save_hdf5(str(int(alpha))+'PortraitModel_{}.model'.format(str(L.data/N).replace('.','')), cnn)
+        serializers.save_hdf5(str(int(alpha))+'sunet_{}.model'.format(str(L.data/N).replace('.','')), cnn)
         

@@ -286,6 +286,76 @@ class Unet(chainer.Chain):
         style_loss = F.mean_squared_error(content, nearest_style_patch)+F.mean_squared_error(xp.identity(content.shape[0],dtype=xp.float32)*b,F.matmul(c_norm,F.transpose(c_norm)))*250
         
         return style_loss
+    
+class smallUnet(chainer.Chain):
+    
+    def __init__(self):
+        super(smallUnet, self).__init__(
+            c0=L.Convolution2D(3, 32, 3, 1, 1),
+            c1=L.Convolution2D(32, 64, 4, 2, 1),
+            c2=L.Convolution2D(64, 64, 3, 1, 1),
+            c3=L.Convolution2D(64, 128, 3, 1, 1),
+            c4=L.Convolution2D(128, 256, 4, 2, 1),
+            c5=L.Convolution2D(256, 512, 3, 1, 1),
+            c6=L.Convolution2D(512, 512, 3, 1, 1),
+
+            dc6=L.Deconvolution2D(1024, 512, 4, 2, 1),
+            dc5=L.Convolution2D(512, 256, 3, 1, 1),
+            dc4=L.Convolution2D(256, 128, 3, 1, 1),
+            dc3=L.Deconvolution2D(256, 128, 4, 2, 1),
+            dc2=L.Convolution2D(128, 64, 3, 1, 1),
+            dc1=L.Convolution2D(64, 32, 3, 1, 1),
+            dc0=L.Convolution2D(64, 3, 3, 1, 1),
+
+            bnc0=L.BatchNormalization(32),
+            bnc1=L.BatchNormalization(64),
+            bnc2=L.BatchNormalization(64),
+            bnc3=L.BatchNormalization(128),
+            bnc4=L.BatchNormalization(256),
+            bnc5=L.BatchNormalization(512),
+            bnc6=L.BatchNormalization(512),
+
+            bnd6=L.BatchNormalization(512),
+            bnd5=L.BatchNormalization(256),
+            bnd4=L.BatchNormalization(128),
+            bnd3=L.BatchNormalization(128),
+            bnd2=L.BatchNormalization(64),
+            bnd1=L.BatchNormalization(32)
+        )
+        
+    def __call__(self, x, test=False):  
+        e0 = F.relu(self.bnc0(self.c0(x), test=test))
+        e1 = F.relu(self.bnc1(self.c1(e0), test=test))
+        e2 = F.relu(self.bnc2(self.c2(e1), test=test))
+        e3 = F.relu(self.bnc3(self.c3(e2), test=test))
+        e4 = F.relu(self.bnc4(self.c4(e3), test=test))
+        e5 = F.relu(self.bnc5(self.c5(e4), test=test))
+        e6 = F.relu(self.bnc6(self.c6(e5), test=test))
+
+        d6 = F.relu(self.bnd6(self.dc6(F.concat([e5, e6])), test=test))
+        d5 = F.relu(self.bnd5(self.dc5(d6), test=test))
+        d4 = F.relu(self.bnd4(self.dc4(d5), test=test))
+        d3 = F.relu(self.bnd3(self.dc3(F.concat([e3, d4])), test=test))
+        d2 = F.relu(self.bnd2(self.dc2(d3), test=test))
+        d1 = F.relu(self.bnd1(self.dc1(d2), test=test))
+        d0 = F.sigmoid(self.dc0(F.concat([e0, d1])))  
+        return d0*255,d0[:,:,::2,::2]*255
+
+    def local_patch(self, content, style_patch, style_patch_norm):
+        
+        xp = cuda.get_array_module(content.data)
+        b,ch,h,w = content.data.shape
+        correlation = F.convolution_2d(Variable(content.data,volatile=True), W=style_patch_norm.data, stride=1, pad=0)
+        indices = xp.argmax(correlation.data, axis=1)
+        nearest_style_patch = style_patch.data.take(indices, axis=0).reshape(b,-1,3*3*ch).transpose(1,0,2).reshape(-1,b,9*ch)
+        content = F.convolution_2d(content, W=Variable(xp.identity(ch*3*3,dtype=xp.float32).reshape((ch*3*3,ch,3,3))),stride=1,pad=0).transpose(2,3,0,1).reshape(-1,b,9*ch)
+        c_norm = (content/xp.linalg.norm(content.data,axis=2,keepdims=True)).reshape(-1,b*9*ch)
+        style_loss = F.mean_squared_error(content, nearest_style_patch)+F.mean_squared_error(xp.identity(content.shape[0],dtype=xp.float32)*b,F.matmul(c_norm,F.transpose(c_norm)))*250
+        
+        l_var = F.mean_squared_error(content, nearest_style_patch)-F.square(F.mean_absolute_error(content, nearest_style_patch))
+        print(style_loss.data, l_var.data)
+        return style_loss + l_var
+
 class VGG19(chainer.Chain):
 
     def __init__(self):
