@@ -120,7 +120,7 @@ vgg=conv_setup(original_vgg19,vgg)
 del original_vgg19
 
 cnn=net()
-serializers.load_hdf5("34187sunet_539033675918197.model",cnn)
+serializers.load_hdf5("18400sunet_2926200769431403.model",cnn)
 
 X,style=load_data(content_path="/data/unagi0/xenogu/celeb160x120/",style_path="/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/",target_width=128)
 print("succesfully data loaded!")
@@ -146,7 +146,7 @@ batch_size=9
 kernel=3
 
 c_t=3000
-alpha=20000.
+#alpha=20000.
 gamma=1e-5
 n_epoch=10000
 save_model_interval=1
@@ -212,11 +212,11 @@ for epoch in range(1,n_epoch+1):
         content_feature=vgg(contents)
         content_feature_small=vgg(contents_small)
         ## content loss
-        L_content=F.elu(F.mean_squared_error(Variable(content_feature["4_2"].data), swap_feature["4_2"])/c_t-1)
-        L_content+=F.elu(F.mean_squared_error(Variable(content_feature_small["4_2"].data), swap_feature_small["4_2"])/c_t-1)
+        L_content=F.mean_squared_error(Variable(content_feature["4_2"].data), swap_feature["4_2"])
+        L_content+=F.mean_squared_error(Variable(content_feature_small["4_2"].data), swap_feature_small["4_2"])
         #L_var = F.mean_squared_error(Variable(content_feature["4_2"].data), swap_feature["4_2"])-F.square(F.mean_absolute_error(Variable(content_feature["4_2"].data), swap_feature["4_2"]))
-        alpha = alpha + L_content.data*30
-        print(alpha)
+        #alpha = alpha + L_content.data*30
+        #print(alpha)
         ## style loss
         L_style=0
         for s,name in enumerate(["3_1","4_1"]):
@@ -226,13 +226,13 @@ for epoch in range(1,n_epoch+1):
         L_style/=2
         ## total variation loss
         L_tv=total_variation(swap_X)
-        L=alpha*L_content+L_style+gamma*L_tv#+10*L_var
+        L=8*L_content+L_style+gamma*L_tv#+10*L_var
         L.backward()
         optimizer.update()
 
 
         if i%9999==0 and i>0:
-            serializers.save_hdf5(str(int(alpha))+'sunet_{}.model'.format(str(L.data/N).replace('.','')), cnn)
+            serializers.save_hdf5('sunet_{}.model'.format(str(L.data/N).replace('.','')), cnn)
             
         if i%save_image_interval==0:
             if batch_size!=9:
@@ -255,5 +255,5 @@ for epoch in range(1,n_epoch+1):
     #    f.write("content loss={} style loss={} tv loss={}".format(sum_lc/N,sum_ls/N,sum_lt/N)+str("\n"))
 
     if epoch%save_model_interval==0:
-        serializers.save_hdf5(str(int(alpha))+'sunet_{}.model'.format(str(L.data/N).replace('.','')), cnn)
+        serializers.save_hdf5('sunet_{}.model'.format(str(L.data/N).replace('.','')), cnn)
         
