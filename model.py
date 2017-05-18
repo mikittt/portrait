@@ -352,9 +352,9 @@ class smallUnet(chainer.Chain):
         c_norm = (content/xp.linalg.norm(content.data,axis=2,keepdims=True)).reshape(-1,b*9*ch)
         style_loss = F.mean_squared_error(content, nearest_style_patch)+F.mean_squared_error(xp.identity(content.shape[0],dtype=xp.float32)*b,F.matmul(c_norm,F.transpose(c_norm)))*250
         
-        l_var = F.mean_squared_error(content, nearest_style_patch)-F.square(F.mean_absolute_error(content, nearest_style_patch))
-        print(style_loss.data, l_var.data)
-        return style_loss + l_var
+        #l_var = F.mean_squared_error(content, nearest_style_patch)-F.square(F.mean_absolute_error(content, nearest_style_patch))
+        print(style_loss.data)#, l_var.data)
+        return style_loss# + l_var*3
 
 class VGG19(chainer.Chain):
 

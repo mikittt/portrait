@@ -92,7 +92,24 @@ def total_variation(x):
     ww = Variable(xp.asarray([[[[1, -1]], [[0, 0]], [[0, 0]]], [[[0, 0]], [[1, -1]], [[0, 0]]], [[[0, 0]], [[0, 0]], [[1, -1]]]], dtype=xp.float32), volatile=x.volatile)
     return F.sum(F.convolution_2d(x, W=wh) ** 2) + F.sum(F.convolution_2d(x, W=ww) ** 2)
 
-
+def augment(x_train, bs):
+    size4 = (x_train[-2].shape[2])//3
+    size5 = (x_train[-1].shape[2])//3
+    inds = np.random.randint(0,len(x_train[-1]),(bs-1)*3)
+    ind = np.random.randint(len(x_train[-1]))
+    x4_1 = x_train[-2][inds[:(bs-1)], :, :size4, :]
+    x4_2 = x_train[-2][inds[(bs-1):(bs-1)*2], :, :size4, :]
+    x4_3 = x_train[-2][inds[(bs-1)*2:], :, size4*2:, :]
+    x5_1 = x_train[-1][inds[:(bs-1)], :, :size5, :]
+    x5_2 = x_train[-1][inds[(bs-1):(bs-1)*2], :, :size5, :]
+    x5_3 = x_train[-1][inds[(bs-1)*2:], :, size5*2:, :]
+    x4_ = np.concatenate([x4_3, x4_2, x4_1], axis=2)
+    x5_ = np.concatenate([x5_3, x5_2, x5_1], axis=2)
+    x4 = np.concatenate([x_train[-2][ind][np.newaxis,:], x4_], axis=0)
+    x5 = np.concatenate([x_train[-1][ind][np.newaxis,:], x5_], axis=0)
+    x4 = xp.array(x4,dtype=xp.float32)
+    x5 = xp.array(x5,dtype=xp.float32)
+    return x4,x5,x4/127.5-1,x5/127.5-1
 
 
 vgg=VGG19()
@@ -103,18 +120,18 @@ vgg=conv_setup(original_vgg19,vgg)
 del original_vgg19
 
 cnn=net()
-#serializers.load_hdf5("29306PortraitModel_29357366444073456.model",cnn)
+serializers.load_hdf5("34187sunet_539033675918197.model",cnn)
 
 X,style=load_data(content_path="/data/unagi0/xenogu/celeb160x120/",style_path="/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/",target_width=128)
 print("succesfully data loaded!")
 
-X_train=[]
-X_test=[]
-for i in range(len(X)):
-    X_train.append(X[i][:-10])
-    X_test.append(X[i][-10:])
-del X
-
+#X_train=[]
+#X_test=[]
+#for i in range(len(X)):
+#    X_train.append(X[i][:-10])
+#    X_test.append(X[i][-10:])
+#del X
+X_train=X
 optimizer=optimizers.Adam(alpha=0.01)
 optimizer.setup(cnn)
 
@@ -128,8 +145,8 @@ N=len(X_train[0])
 batch_size=9
 kernel=3
 
-c_t=2000
-alpha=29306.
+c_t=3000
+alpha=20000.
 gamma=1e-5
 n_epoch=10000
 save_model_interval=1
@@ -176,13 +193,15 @@ for epoch in range(1,n_epoch+1):
 
         #x2=xp.array(X_train[1][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
         #x3=xp.array(X_train[2][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
-        x4=xp.array(X_train[-2][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
-        x5=xp.array(X_train[-1][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
+        #x4=xp.array(X_train[-2][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
+        #x5=xp.array(X_train[-1][perm[i:i+batch_size]],dtype=xp.float32)/127.5-1.
+        x4, x5, x4n, x5n = augment(X_train, batch_size)
         
-        
-        swap_X,swap_X_small=cnn(x5)
-        contents=Variable(xp.array(X_train[-1][perm[i:i+batch_size]],dtype=xp.float32),volatile=True)
-        contents_small=Variable(xp.array(X_train[-2][perm[i:i+batch_size]],dtype=xp.float32),volatile=True)
+        swap_X,swap_X_small=cnn(x5n)
+        #contents=Variable(xp.array(X_train[-1][perm[i:i+batch_size]],dtype=xp.float32),volatile=True)
+        #contents_small=Variable(xp.array(X_train[-2][perm[i:i+batch_size]],dtype=xp.float32),volatile=True)
+        contents=Variable(xp.array(x5,dtype=xp.float32),volatile=True)
+        contents_small=Variable(xp.array(x4,dtype=xp.float32),volatile=True)
         swap_X-=xp.array([[[[104]],[[117]],[[124]]]])
         contents-=xp.array([[[[104]],[[117]],[[124]]]])
         swap_X_small-=xp.array([[[[104]],[[117]],[[124]]]])
@@ -207,12 +226,14 @@ for epoch in range(1,n_epoch+1):
         L_style/=2
         ## total variation loss
         L_tv=total_variation(swap_X)
-        print(L_content.data)#,L_var.data)
         L=alpha*L_content+L_style+gamma*L_tv#+10*L_var
         L.backward()
         optimizer.update()
 
 
+        if i%9999==0 and i>0:
+            serializers.save_hdf5(str(int(alpha))+'sunet_{}.model'.format(str(L.data/N).replace('.','')), cnn)
+            
         if i%save_image_interval==0:
             if batch_size!=9:
                 X = xp.transpose(swap_X.data[0]+xp.array([[[104]],[[117]],[[124]]]), (1,2,0))
@@ -220,17 +241,16 @@ for epoch in range(1,n_epoch+1):
             else:
                 image=[]
                 w = swap_X.shape[3]
-                for i in range(3):
-                    X = np.transpose(cuda.to_cpu(swap_X.data[i*3:i*3+3])+np.array([[[104]],[[117]],[[124]]]), (0,2,3,1)).reshape(-1,w,3)
+                for j in range(3):
+                    X = np.transpose(cuda.to_cpu(swap_X.data[j*3:j*3+3])+np.array([[[104]],[[117]],[[124]]]), (0,2,3,1)).reshape(-1,w,3)
                     image.append(X)
-                    X = np.transpose(cuda.to_cpu(contents.data[i*3:i*3+3])+np.array([[[104]],[[117]],[[124]]]), (0,2,3,1)).reshape(-1,w,3)
+                    X = np.transpose(cuda.to_cpu(contents.data[j*3:j*3+3])+np.array([[[104]],[[117]],[[124]]]), (0,2,3,1)).reshape(-1,w,3)
                     image.append(X)
                 image = np.concatenate(image,axis=1)
                 Image.fromarray(np.clip(image[:,:,::-1],0,255).astype(np.uint8)).save("out/portrait"+str(epoch)+"_"+".jpg")
         print(("content loss={} style loss={} tv loss={}".format(L_content.data,L_style.data,L_tv.data)))
         
-        if i%9999==9998:
-            serializers.save_hdf5(str(int(alpha))+'sunet_{}.model'.format(str(L.data/N).replace('.','')), cnn)
+        
     #with open("log.txt","w") as f:
     #    f.write("content loss={} style loss={} tv loss={}".format(sum_lc/N,sum_ls/N,sum_lt/N)+str("\n"))
 
