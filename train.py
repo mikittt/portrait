@@ -73,7 +73,8 @@ def load_data(content_path, style_path, target_width):
     
     style = []
     """
-    path = glob.glob(style_path+"*.jpg")[0]
+    path = "/home/mil/tanaka/seminar/portrait/fast_portrait/data/style/portrait_.jpg"#glob.glob(style_path+"*.jpg")[0]
+    
     image = Image.open(path).convert('RGB')
     width, height = image.size
     target_height = (int(round(float(height * target_width) / width))//2)*2
@@ -111,6 +112,12 @@ def augment(x_train, bs):
     x5 = xp.array(x5,dtype=xp.float32)
     return x4,x5,x4/127.5-1,x5/127.5-1
 
+def mat_loss(swap, mat_):
+    b,c,h,w=swap.shape
+    mat=swap.transpose((1,0,2,3)).reshape(c,-1)
+    style_mat=F.matmul(mat,mat,transb=True)/xp.float32(c*h*w*b)
+    print("style_mat loss",F.mean_squared_error(style_mat,mat_).data)
+    return F.mean_squared_error(style_mat,mat_)
 
 vgg=VGG19()
 original_vgg19=VGG19()
@@ -166,7 +173,13 @@ for name in ["3_1","4_1"]:
     np.save("data/style/style_patch_norm_large"+name+".npy",cuda.to_cpu(patch_norm))
     np.save("data/style/style_patch_large"+name+".npy",cuda.to_cpu(patch))
     
-
+    #style_mat
+    mat=style_feature[name][0].data.reshape(style_feature[name][0].shape[0],-1)
+    style_mat=xp.dot(mat,mat.T)/xp.float32(mat.size)
+    np.save("data/style/style_mat"+name+".npy",cuda.to_cpu(style_mat))
+    
+print("save_style_mat")
+    
 style_feature=vgg(style_small)
 for name in ["3_1","4_1"]:
     patch_norm=xp.array([cuda.to_cpu(style_feature[name][0,:,j:j+kernel,i:i+kernel].data/xp.linalg.norm(style_feature[name][0,:,j:j+kernel,i:i+kernel].data)) for j in range(style_feature[name].shape[2]-kernel+1) for i in range(style_feature[name].shape[3]-kernel+1)],dtype=xp.float32)
@@ -175,10 +188,15 @@ for name in ["3_1","4_1"]:
     
     np.save("data/style/style_patch_norm_small"+name+".npy",cuda.to_cpu(patch_norm))
     np.save("data/style/style_patch_small"+name+".npy",cuda.to_cpu(patch))
+
+
+print("end saving")
 """
 
 style_patch_norm=[xp.concatenate((xp.array(np.load("data/style/style_patch_norm_large"+name+".npy"),xp.float32),xp.array(np.load("data/style/style_patch_norm_large"+name+".npy"),xp.float32)[:,:,:,::-1]),axis=0) for name in ["3_1","4_1"]]
 style_patch=[xp.concatenate((xp.array(np.load("data/style/style_patch_large"+name+".npy"),xp.float32),xp.array(np.load("data/style/style_patch_large"+name+".npy"),xp.float32)),axis=0) for name in ["3_1","4_1"]]
+
+style_mat = [xp.array(np.load("data/style/style_mat"+name+".npy"),xp.float32) for name in ["3_1","4_1"]]
 
 style_patch_norm_small=[xp.concatenate((xp.array(np.load("data/style/style_patch_norm_small"+name+".npy"),xp.float32),xp.array(np.load("data/style/style_patch_norm_small"+name+".npy"),xp.float32)[:,:,:,::-1]),axis=0) for name in ["3_1","4_1"]]
 style_patch_small=[xp.concatenate((xp.array(np.load("data/style/style_patch_small"+name+".npy"),xp.float32),xp.array(np.load("data/style/style_patch_small"+name+".npy"),xp.float32)),axis=0) for name in ["3_1","4_1"]]
@@ -221,12 +239,13 @@ for epoch in range(1,n_epoch+1):
         L_style=0
         for s,name in enumerate(["3_1","4_1"]):
             L_style+=cnn.local_patch(swap_feature[name],Variable(style_patch[s],volatile=True),Variable(style_patch_norm[s],volatile=True))
+            L_style+=mat_loss(swap_feature[name], Variable(style_mat[s]))*0.1
         for s,name in enumerate(["3_1","4_1"]):
             L_style+=cnn.local_patch(swap_feature_small[name],Variable(style_patch_small[s],volatile=True),Variable(style_patch_norm_small[s],volatile=True))
         L_style/=2
         ## total variation loss
         L_tv=total_variation(swap_X)
-        L=8*L_content+L_style+gamma*L_tv#+10*L_var
+        L=10*L_content+L_style+gamma*L_tv#+10*L_var
         L.backward()
         optimizer.update()
 
